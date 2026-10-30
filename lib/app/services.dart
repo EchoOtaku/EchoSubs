@@ -17,13 +17,26 @@ import '../core/model/subscription.dart';
 import '../features/ledger/ledger_repository.dart';
 import '../storage/app_database.dart';
 import '../storage/ledger_store.dart';
+import '../features/sync/sync_coordinator.dart';
+import '../features/sync/sync_status.dart';
+import '../features/sync/sync_runtime.dart';
 
 /// Local client services. Repository injection keeps widgets platform independent.
 class AppServices extends ChangeNotifier {
   AppServices({required this.ledger}) {
+    syncRuntime = SyncRuntime(
+      ledger,
+      attach: attachSync,
+      detach: detachSync,
+      select: selectLedger,
+    );
+    rebindSync = syncRuntime.rebind;
+    syncLifecycle = syncRuntime.foreground;
+    closeSyncRuntime = syncRuntime.close;
     ready = reload();
   }
   final LedgerRepository ledger;
+  late final SyncRuntime syncRuntime;
   late final Future<void> ready;
   StreamSubscription<LedgerProjection>? _watch;
   LedgerSnapshot? snapshot;
@@ -32,6 +45,113 @@ class AppServices extends ChangeNotifier {
   bool _disposed = false;
   int _generation = 0;
   int _read = 0;
+  bool _switching = false;
+  bool _writeLocked = false;
+  SyncCoordinator? syncCoordinator;
+  SyncStatus syncStatus = const SyncStatus();
+  StreamSubscription<SyncStatus>? _syncWatch;
+  StreamSubscription<LedgerProjection>? _syncChanges;
+  SyncCancellation? _syncToken;
+  String? _archiveFingerprint;
+  bool _syncAgain = false;
+  Future<void> Function()? rebindSync;
+  Future<void> Function(bool foreground)? syncLifecycle;
+  Future<void> Function()? closeSyncRuntime;
+  void attachSync(SyncCoordinator coordinator) {
+    if (coordinator.store.ledgerId != ledger.currentLedgerId || _disposed) {
+      unawaited(coordinator.close());
+      return;
+    }
+    final previous = syncCoordinator;
+    _syncToken?.cancel();
+    unawaited(_syncWatch?.cancel());
+    unawaited(_syncChanges?.cancel());
+    if (previous != null && previous != coordinator)
+      unawaited(previous.close());
+    syncCoordinator = coordinator;
+    syncStatus = coordinator.status;
+    _archiveFingerprint = null;
+    _syncWatch = coordinator.watchStatus().listen((value) {
+      if (_disposed ||
+          syncCoordinator != coordinator ||
+          coordinator.store.ledgerId != ledger.currentLedgerId)
+        return;
+      syncStatus = value;
+      _changed();
+    });
+    _syncChanges = coordinator.store.watch().listen((_) async {
+      try {
+        final objects = [
+          ...await coordinator.store.objects(),
+          ...(await coordinator.store.quarantinedObjects()).map(
+            (q) => q.object,
+          ),
+        ];
+        final ids =
+            objects.map((o) => '${o.batchId}:${o.sha256}').toSet().toList()
+              ..sort();
+        final fingerprint = ids.join(',');
+        if (_disposed ||
+            syncCoordinator != coordinator ||
+            fingerprint == _archiveFingerprint)
+          return;
+        _archiveFingerprint = fingerprint;
+        if (coordinator.status.running) {
+          _syncAgain = true;
+        } else {
+          unawaited(syncNow());
+        }
+      } on Object catch (e) {
+        if (!_disposed && syncCoordinator == coordinator) {
+          error = safeError(e);
+          _changed();
+        }
+      }
+    }, onError: (Object _) {});
+    unawaited(syncNow());
+  }
+
+  Future<void> syncNow() async {
+    final coordinator = syncCoordinator;
+    if (coordinator == null || _disposed || _switching) return;
+    if (coordinator.status.running) {
+      _syncAgain = true;
+      return;
+    }
+    _syncToken = SyncCancellation();
+    try {
+      await coordinator.sync(token: _syncToken!);
+      if (syncCoordinator == coordinator) await refresh();
+    } on Object catch (e) {
+      if (syncCoordinator == coordinator) {
+        error = safeError(e);
+        _changed();
+      }
+    } finally {
+      if (_syncAgain && syncCoordinator == coordinator && !_disposed) {
+        _syncAgain = false;
+        unawaited(syncNow());
+      }
+    }
+  }
+
+  Future<void> detachSync() async {
+    _syncToken?.cancel();
+    final previous = syncCoordinator;
+    syncCoordinator = null;
+    await _syncWatch?.cancel();
+    await _syncChanges?.cancel();
+    await previous?.close();
+    syncStatus = const SyncStatus();
+  }
+
+  void _requireWritable([LedgerId? expected]) {
+    if (_switching || _writeLocked || snapshot == null)
+      throw const EchoFailure('locked', '账本暂不可写');
+    if (expected != null && expected != ledger.currentLedgerId)
+      throw const EchoFailure('conflict', '账本已切换，请重新打开表单');
+  }
+
   bool get loading => snapshot == null && error == null;
   List<Subscription> get subscriptions =>
       snapshot?.projection.entities.values.whereType<Subscription>().toList() ??
@@ -106,18 +226,36 @@ class AppServices extends ChangeNotifier {
   static const activeLedgerKey = 'active.ledger';
   static const deviceIdKey = 'device.id';
   Future<void> selectLedger(LedgerId id) async {
+    if (_switching) throw const EchoFailure('unavailable', '正在切换账本');
+    _switching = true;
     final previous = ledger.currentLedgerId;
-    await ledger.selectLedger(id);
+    ++_generation;
+    ++_read;
     try {
+      await detachSync();
+      await _watch?.cancel();
+      await ledger.selectLedger(id);
       await ledger.vault.put(
         activeLedgerKey,
         Uint8List.fromList(utf8.encode(id)),
       );
+      _writeLocked = false;
+      await reload();
     } on Object {
-      if (previous != null) await ledger.selectLedger(previous);
+      try {
+        if (previous != null) await ledger.selectLedger(previous);
+        await reload();
+      } on Object {
+        _writeLocked = true;
+        snapshot = null;
+        error = '账本切换未完成，已停止写入。原有数据与密钥已保留。';
+        _changed();
+      }
       rethrow;
+    } finally {
+      _switching = false;
     }
-    await reload();
+    await rebindSync?.call();
   }
 
   void setTheme(ThemeMode mode) {
@@ -133,7 +271,11 @@ class AppServices extends ChangeNotifier {
   Future<void> saveSubscription(
     Subscription value, {
     String? categoryName,
+    LedgerId? expectedLedgerId,
+    List<BatchId>? baseParents,
   }) async {
+    _requireWritable(expectedLedgerId);
+    final targetId = expectedLedgerId ?? ledger.currentLedgerId!;
     final state = await ledger.snapshot();
     final changes = <Mutation>[];
     var actual = value;
@@ -151,20 +293,46 @@ class AppServices extends ChangeNotifier {
       actual = copySubscription(value, {'categoryId': category.id});
     }
     final ref = EntityRef(actual.kind, actual.id);
-    changes.add(Mutation(ref, heads(state, ref), actual));
-    await ledger.commit(changes);
+    changes.add(Mutation(ref, baseParents ?? heads(state, ref), actual));
+    _requireWritable(targetId);
+    await ledger.commit(changes, expectedLedgerId: targetId);
     await refresh();
   }
 
   Future<void> deleteSubscription(Subscription value) async {
+    _requireWritable();
+    final targetId = ledger.currentLedgerId!;
     final state = await ledger.snapshot();
     final ref = EntityRef(value.kind, value.id);
-    await ledger.commit([Mutation(ref, heads(state, ref), null)]);
+    await ledger.commit([
+      Mutation(ref, heads(state, ref), null),
+    ], expectedLedgerId: targetId);
     await refresh();
   }
 
-  Future<void> renew(Subscription value, Payment payment) async {
-    await ledger.renew(value, payment);
+  Future<void> renew(
+    Subscription value,
+    Payment payment, {
+    LedgerId? expectedLedgerId,
+    List<BatchId>? baseParents,
+  }) async {
+    _requireWritable(expectedLedgerId);
+    await ledger.renew(
+      value,
+      payment,
+      expectedLedgerId: expectedLedgerId ?? ledger.currentLedgerId!,
+      baseParents: baseParents,
+    );
+    await refresh();
+  }
+
+  Future<void> resolveConflict(
+    LedgerId id,
+    Conflict conflict,
+    List<Mutation> changes,
+  ) async {
+    _requireWritable(id);
+    await ledger.resolve(conflict, changes, expectedLedgerId: id);
     await refresh();
   }
 
@@ -172,6 +340,8 @@ class AppServices extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _watch?.cancel();
+    unawaited(detachSync());
+    unawaited(closeSyncRuntime?.call());
     super.dispose();
   }
 
@@ -224,6 +394,11 @@ class AppServices extends ChangeNotifier {
       }
       final services = AppServices(ledger: repository);
       await services.ready;
+      try {
+        await services.syncRuntime.rebind();
+      } on Object catch (e) {
+        services.error = safeError(e);
+      }
       return services;
     } on Object {
       if (database == null) await db.close();

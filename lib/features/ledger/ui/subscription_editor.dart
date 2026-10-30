@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../app/services.dart';
 import '../../../core/model/civil_date.dart';
+import '../../../core/model/change_batch.dart';
+import '../../../core/model/errors.dart';
 import '../../../core/model/ids.dart';
 import '../../../core/model/ledger.dart';
 import '../../../core/model/money.dart';
@@ -25,11 +27,25 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
   late bool _autoRenew;
   bool _saving = false;
   String? _error;
+  late final LedgerId _ledgerId;
+  late final List<BatchId> _baseParents;
+  late final bool _baseMatches;
   TextEditingController field(String key) => _fields[key]!;
   @override
   void initState() {
     super.initState();
     final s = widget.value;
+    _ledgerId = widget.services.ledger.currentLedgerId!;
+    _baseMatches =
+        s == null ||
+        widget.services.snapshot!.projection.entities[EntityRef(
+              s.kind,
+              s.id,
+            )] ==
+            s;
+    _baseParents = s == null
+        ? []
+        : widget.services.snapshot!.causal.parentsFor(EntityRef(s.kind, s.id));
     final initial = <String, String>{
       'name': s?.name ?? '',
       'provider': s?.provider ?? '',
@@ -144,9 +160,12 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
         autoRenew: _type == BillingType.lifetime ? false : _autoRenew,
         reminderRule: widget.value?.reminderRule ?? ReminderRule(),
       );
+      if (!_baseMatches) throw const EchoFailure('conflict', '记录已更新，请重新打开表单');
       await widget.services.saveSubscription(
         value,
         categoryName: text('category'),
+        expectedLedgerId: _ledgerId,
+        baseParents: _baseParents,
       );
       if (mounted) Navigator.of(context).pop();
     } on Object catch (e) {

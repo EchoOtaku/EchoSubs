@@ -80,3 +80,29 @@ class QuarantinedObjects extends Table {
   @override
   Set<Column> get primaryKey => {ledgerId, batchId, sha256};
 }
+
+class SyncChannelConfigs extends Table {
+  TextColumn get ledgerId => text()();
+  TextColumn get channel => text()();
+  TextColumn get endpointId => text()();
+  TextColumn get body => text()();
+  BoolColumn get enabled => boolean()();
+  @override
+  Set<Column> get primaryKey => {ledgerId, channel};
+}
+
+class SyncObjectAcks extends Table {
+  TextColumn get ledgerId => text()();
+  TextColumn get channel => text()();
+  TextColumn get endpointId => text()();
+  TextColumn get batchId => text()();
+  TextColumn get sha256 => text()();
+  @override
+  Set<Column> get primaryKey => {
+    ledgerId,
+    channel,
+    endpointId,
+    batchId,
+    sha256,
+  };
+}

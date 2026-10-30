@@ -4,9 +4,39 @@ import 'navigation.dart';
 import 'services.dart';
 import 'theme.dart';
 
-class EchoSubsApp extends StatelessWidget {
+class EchoSubsApp extends StatefulWidget {
   const EchoSubsApp({super.key, required this.services});
   final AppServices services;
+  @override
+  State<EchoSubsApp> createState() => _EchoSubsAppState();
+}
+
+class _EchoSubsAppState extends State<EchoSubsApp> with WidgetsBindingObserver {
+  AppServices get services => widget.services;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      services.syncLifecycle?.call(true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      services.syncLifecycle?.call(false);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    services.syncLifecycle?.call(false);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: services,

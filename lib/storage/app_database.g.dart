@@ -2613,6 +2613,751 @@ class QuarantinedObjectsCompanion extends UpdateCompanion<QuarantinedObject> {
   }
 }
 
+class $SyncChannelConfigsTable extends SyncChannelConfigs
+    with TableInfo<$SyncChannelConfigsTable, SyncChannelConfig> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncChannelConfigsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _ledgerIdMeta = const VerificationMeta(
+    'ledgerId',
+  );
+  @override
+  late final GeneratedColumn<String> ledgerId = GeneratedColumn<String>(
+    'ledger_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _channelMeta = const VerificationMeta(
+    'channel',
+  );
+  @override
+  late final GeneratedColumn<String> channel = GeneratedColumn<String>(
+    'channel',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endpointIdMeta = const VerificationMeta(
+    'endpointId',
+  );
+  @override
+  late final GeneratedColumn<String> endpointId = GeneratedColumn<String>(
+    'endpoint_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    ledgerId,
+    channel,
+    endpointId,
+    body,
+    enabled,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_channel_configs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SyncChannelConfig> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('ledger_id')) {
+      context.handle(
+        _ledgerIdMeta,
+        ledgerId.isAcceptableOrUnknown(data['ledger_id']!, _ledgerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ledgerIdMeta);
+    }
+    if (data.containsKey('channel')) {
+      context.handle(
+        _channelMeta,
+        channel.isAcceptableOrUnknown(data['channel']!, _channelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelMeta);
+    }
+    if (data.containsKey('endpoint_id')) {
+      context.handle(
+        _endpointIdMeta,
+        endpointId.isAcceptableOrUnknown(data['endpoint_id']!, _endpointIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endpointIdMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_enabledMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {ledgerId, channel};
+  @override
+  SyncChannelConfig map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncChannelConfig(
+      ledgerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ledger_id'],
+      )!,
+      channel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel'],
+      )!,
+      endpointId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}endpoint_id'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
+      )!,
+    );
+  }
+
+  @override
+  $SyncChannelConfigsTable createAlias(String alias) {
+    return $SyncChannelConfigsTable(attachedDatabase, alias);
+  }
+}
+
+class SyncChannelConfig extends DataClass
+    implements Insertable<SyncChannelConfig> {
+  final String ledgerId;
+  final String channel;
+  final String endpointId;
+  final String body;
+  final bool enabled;
+  const SyncChannelConfig({
+    required this.ledgerId,
+    required this.channel,
+    required this.endpointId,
+    required this.body,
+    required this.enabled,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['ledger_id'] = Variable<String>(ledgerId);
+    map['channel'] = Variable<String>(channel);
+    map['endpoint_id'] = Variable<String>(endpointId);
+    map['body'] = Variable<String>(body);
+    map['enabled'] = Variable<bool>(enabled);
+    return map;
+  }
+
+  SyncChannelConfigsCompanion toCompanion(bool nullToAbsent) {
+    return SyncChannelConfigsCompanion(
+      ledgerId: Value(ledgerId),
+      channel: Value(channel),
+      endpointId: Value(endpointId),
+      body: Value(body),
+      enabled: Value(enabled),
+    );
+  }
+
+  factory SyncChannelConfig.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncChannelConfig(
+      ledgerId: serializer.fromJson<String>(json['ledgerId']),
+      channel: serializer.fromJson<String>(json['channel']),
+      endpointId: serializer.fromJson<String>(json['endpointId']),
+      body: serializer.fromJson<String>(json['body']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'ledgerId': serializer.toJson<String>(ledgerId),
+      'channel': serializer.toJson<String>(channel),
+      'endpointId': serializer.toJson<String>(endpointId),
+      'body': serializer.toJson<String>(body),
+      'enabled': serializer.toJson<bool>(enabled),
+    };
+  }
+
+  SyncChannelConfig copyWith({
+    String? ledgerId,
+    String? channel,
+    String? endpointId,
+    String? body,
+    bool? enabled,
+  }) => SyncChannelConfig(
+    ledgerId: ledgerId ?? this.ledgerId,
+    channel: channel ?? this.channel,
+    endpointId: endpointId ?? this.endpointId,
+    body: body ?? this.body,
+    enabled: enabled ?? this.enabled,
+  );
+  SyncChannelConfig copyWithCompanion(SyncChannelConfigsCompanion data) {
+    return SyncChannelConfig(
+      ledgerId: data.ledgerId.present ? data.ledgerId.value : this.ledgerId,
+      channel: data.channel.present ? data.channel.value : this.channel,
+      endpointId: data.endpointId.present
+          ? data.endpointId.value
+          : this.endpointId,
+      body: data.body.present ? data.body.value : this.body,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncChannelConfig(')
+          ..write('ledgerId: $ledgerId, ')
+          ..write('channel: $channel, ')
+          ..write('endpointId: $endpointId, ')
+          ..write('body: $body, ')
+          ..write('enabled: $enabled')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(ledgerId, channel, endpointId, body, enabled);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncChannelConfig &&
+          other.ledgerId == this.ledgerId &&
+          other.channel == this.channel &&
+          other.endpointId == this.endpointId &&
+          other.body == this.body &&
+          other.enabled == this.enabled);
+}
+
+class SyncChannelConfigsCompanion extends UpdateCompanion<SyncChannelConfig> {
+  final Value<String> ledgerId;
+  final Value<String> channel;
+  final Value<String> endpointId;
+  final Value<String> body;
+  final Value<bool> enabled;
+  final Value<int> rowid;
+  const SyncChannelConfigsCompanion({
+    this.ledgerId = const Value.absent(),
+    this.channel = const Value.absent(),
+    this.endpointId = const Value.absent(),
+    this.body = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SyncChannelConfigsCompanion.insert({
+    required String ledgerId,
+    required String channel,
+    required String endpointId,
+    required String body,
+    required bool enabled,
+    this.rowid = const Value.absent(),
+  }) : ledgerId = Value(ledgerId),
+       channel = Value(channel),
+       endpointId = Value(endpointId),
+       body = Value(body),
+       enabled = Value(enabled);
+  static Insertable<SyncChannelConfig> custom({
+    Expression<String>? ledgerId,
+    Expression<String>? channel,
+    Expression<String>? endpointId,
+    Expression<String>? body,
+    Expression<bool>? enabled,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (ledgerId != null) 'ledger_id': ledgerId,
+      if (channel != null) 'channel': channel,
+      if (endpointId != null) 'endpoint_id': endpointId,
+      if (body != null) 'body': body,
+      if (enabled != null) 'enabled': enabled,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SyncChannelConfigsCompanion copyWith({
+    Value<String>? ledgerId,
+    Value<String>? channel,
+    Value<String>? endpointId,
+    Value<String>? body,
+    Value<bool>? enabled,
+    Value<int>? rowid,
+  }) {
+    return SyncChannelConfigsCompanion(
+      ledgerId: ledgerId ?? this.ledgerId,
+      channel: channel ?? this.channel,
+      endpointId: endpointId ?? this.endpointId,
+      body: body ?? this.body,
+      enabled: enabled ?? this.enabled,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (ledgerId.present) {
+      map['ledger_id'] = Variable<String>(ledgerId.value);
+    }
+    if (channel.present) {
+      map['channel'] = Variable<String>(channel.value);
+    }
+    if (endpointId.present) {
+      map['endpoint_id'] = Variable<String>(endpointId.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncChannelConfigsCompanion(')
+          ..write('ledgerId: $ledgerId, ')
+          ..write('channel: $channel, ')
+          ..write('endpointId: $endpointId, ')
+          ..write('body: $body, ')
+          ..write('enabled: $enabled, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SyncObjectAcksTable extends SyncObjectAcks
+    with TableInfo<$SyncObjectAcksTable, SyncObjectAck> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncObjectAcksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _ledgerIdMeta = const VerificationMeta(
+    'ledgerId',
+  );
+  @override
+  late final GeneratedColumn<String> ledgerId = GeneratedColumn<String>(
+    'ledger_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _channelMeta = const VerificationMeta(
+    'channel',
+  );
+  @override
+  late final GeneratedColumn<String> channel = GeneratedColumn<String>(
+    'channel',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endpointIdMeta = const VerificationMeta(
+    'endpointId',
+  );
+  @override
+  late final GeneratedColumn<String> endpointId = GeneratedColumn<String>(
+    'endpoint_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _batchIdMeta = const VerificationMeta(
+    'batchId',
+  );
+  @override
+  late final GeneratedColumn<String> batchId = GeneratedColumn<String>(
+    'batch_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sha256Meta = const VerificationMeta('sha256');
+  @override
+  late final GeneratedColumn<String> sha256 = GeneratedColumn<String>(
+    'sha256',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    ledgerId,
+    channel,
+    endpointId,
+    batchId,
+    sha256,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_object_acks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SyncObjectAck> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('ledger_id')) {
+      context.handle(
+        _ledgerIdMeta,
+        ledgerId.isAcceptableOrUnknown(data['ledger_id']!, _ledgerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ledgerIdMeta);
+    }
+    if (data.containsKey('channel')) {
+      context.handle(
+        _channelMeta,
+        channel.isAcceptableOrUnknown(data['channel']!, _channelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelMeta);
+    }
+    if (data.containsKey('endpoint_id')) {
+      context.handle(
+        _endpointIdMeta,
+        endpointId.isAcceptableOrUnknown(data['endpoint_id']!, _endpointIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endpointIdMeta);
+    }
+    if (data.containsKey('batch_id')) {
+      context.handle(
+        _batchIdMeta,
+        batchId.isAcceptableOrUnknown(data['batch_id']!, _batchIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_batchIdMeta);
+    }
+    if (data.containsKey('sha256')) {
+      context.handle(
+        _sha256Meta,
+        sha256.isAcceptableOrUnknown(data['sha256']!, _sha256Meta),
+      );
+    } else if (isInserting) {
+      context.missing(_sha256Meta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {
+    ledgerId,
+    channel,
+    endpointId,
+    batchId,
+    sha256,
+  };
+  @override
+  SyncObjectAck map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncObjectAck(
+      ledgerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ledger_id'],
+      )!,
+      channel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel'],
+      )!,
+      endpointId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}endpoint_id'],
+      )!,
+      batchId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}batch_id'],
+      )!,
+      sha256: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sha256'],
+      )!,
+    );
+  }
+
+  @override
+  $SyncObjectAcksTable createAlias(String alias) {
+    return $SyncObjectAcksTable(attachedDatabase, alias);
+  }
+}
+
+class SyncObjectAck extends DataClass implements Insertable<SyncObjectAck> {
+  final String ledgerId;
+  final String channel;
+  final String endpointId;
+  final String batchId;
+  final String sha256;
+  const SyncObjectAck({
+    required this.ledgerId,
+    required this.channel,
+    required this.endpointId,
+    required this.batchId,
+    required this.sha256,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['ledger_id'] = Variable<String>(ledgerId);
+    map['channel'] = Variable<String>(channel);
+    map['endpoint_id'] = Variable<String>(endpointId);
+    map['batch_id'] = Variable<String>(batchId);
+    map['sha256'] = Variable<String>(sha256);
+    return map;
+  }
+
+  SyncObjectAcksCompanion toCompanion(bool nullToAbsent) {
+    return SyncObjectAcksCompanion(
+      ledgerId: Value(ledgerId),
+      channel: Value(channel),
+      endpointId: Value(endpointId),
+      batchId: Value(batchId),
+      sha256: Value(sha256),
+    );
+  }
+
+  factory SyncObjectAck.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncObjectAck(
+      ledgerId: serializer.fromJson<String>(json['ledgerId']),
+      channel: serializer.fromJson<String>(json['channel']),
+      endpointId: serializer.fromJson<String>(json['endpointId']),
+      batchId: serializer.fromJson<String>(json['batchId']),
+      sha256: serializer.fromJson<String>(json['sha256']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'ledgerId': serializer.toJson<String>(ledgerId),
+      'channel': serializer.toJson<String>(channel),
+      'endpointId': serializer.toJson<String>(endpointId),
+      'batchId': serializer.toJson<String>(batchId),
+      'sha256': serializer.toJson<String>(sha256),
+    };
+  }
+
+  SyncObjectAck copyWith({
+    String? ledgerId,
+    String? channel,
+    String? endpointId,
+    String? batchId,
+    String? sha256,
+  }) => SyncObjectAck(
+    ledgerId: ledgerId ?? this.ledgerId,
+    channel: channel ?? this.channel,
+    endpointId: endpointId ?? this.endpointId,
+    batchId: batchId ?? this.batchId,
+    sha256: sha256 ?? this.sha256,
+  );
+  SyncObjectAck copyWithCompanion(SyncObjectAcksCompanion data) {
+    return SyncObjectAck(
+      ledgerId: data.ledgerId.present ? data.ledgerId.value : this.ledgerId,
+      channel: data.channel.present ? data.channel.value : this.channel,
+      endpointId: data.endpointId.present
+          ? data.endpointId.value
+          : this.endpointId,
+      batchId: data.batchId.present ? data.batchId.value : this.batchId,
+      sha256: data.sha256.present ? data.sha256.value : this.sha256,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncObjectAck(')
+          ..write('ledgerId: $ledgerId, ')
+          ..write('channel: $channel, ')
+          ..write('endpointId: $endpointId, ')
+          ..write('batchId: $batchId, ')
+          ..write('sha256: $sha256')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(ledgerId, channel, endpointId, batchId, sha256);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncObjectAck &&
+          other.ledgerId == this.ledgerId &&
+          other.channel == this.channel &&
+          other.endpointId == this.endpointId &&
+          other.batchId == this.batchId &&
+          other.sha256 == this.sha256);
+}
+
+class SyncObjectAcksCompanion extends UpdateCompanion<SyncObjectAck> {
+  final Value<String> ledgerId;
+  final Value<String> channel;
+  final Value<String> endpointId;
+  final Value<String> batchId;
+  final Value<String> sha256;
+  final Value<int> rowid;
+  const SyncObjectAcksCompanion({
+    this.ledgerId = const Value.absent(),
+    this.channel = const Value.absent(),
+    this.endpointId = const Value.absent(),
+    this.batchId = const Value.absent(),
+    this.sha256 = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SyncObjectAcksCompanion.insert({
+    required String ledgerId,
+    required String channel,
+    required String endpointId,
+    required String batchId,
+    required String sha256,
+    this.rowid = const Value.absent(),
+  }) : ledgerId = Value(ledgerId),
+       channel = Value(channel),
+       endpointId = Value(endpointId),
+       batchId = Value(batchId),
+       sha256 = Value(sha256);
+  static Insertable<SyncObjectAck> custom({
+    Expression<String>? ledgerId,
+    Expression<String>? channel,
+    Expression<String>? endpointId,
+    Expression<String>? batchId,
+    Expression<String>? sha256,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (ledgerId != null) 'ledger_id': ledgerId,
+      if (channel != null) 'channel': channel,
+      if (endpointId != null) 'endpoint_id': endpointId,
+      if (batchId != null) 'batch_id': batchId,
+      if (sha256 != null) 'sha256': sha256,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SyncObjectAcksCompanion copyWith({
+    Value<String>? ledgerId,
+    Value<String>? channel,
+    Value<String>? endpointId,
+    Value<String>? batchId,
+    Value<String>? sha256,
+    Value<int>? rowid,
+  }) {
+    return SyncObjectAcksCompanion(
+      ledgerId: ledgerId ?? this.ledgerId,
+      channel: channel ?? this.channel,
+      endpointId: endpointId ?? this.endpointId,
+      batchId: batchId ?? this.batchId,
+      sha256: sha256 ?? this.sha256,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (ledgerId.present) {
+      map['ledger_id'] = Variable<String>(ledgerId.value);
+    }
+    if (channel.present) {
+      map['channel'] = Variable<String>(channel.value);
+    }
+    if (endpointId.present) {
+      map['endpoint_id'] = Variable<String>(endpointId.value);
+    }
+    if (batchId.present) {
+      map['batch_id'] = Variable<String>(batchId.value);
+    }
+    if (sha256.present) {
+      map['sha256'] = Variable<String>(sha256.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncObjectAcksCompanion(')
+          ..write('ledgerId: $ledgerId, ')
+          ..write('channel: $channel, ')
+          ..write('endpointId: $endpointId, ')
+          ..write('batchId: $batchId, ')
+          ..write('sha256: $sha256, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2631,6 +3376,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $NotificationStatesTable(this);
   late final $QuarantinedObjectsTable quarantinedObjects =
       $QuarantinedObjectsTable(this);
+  late final $SyncChannelConfigsTable syncChannelConfigs =
+      $SyncChannelConfigsTable(this);
+  late final $SyncObjectAcksTable syncObjectAcks = $SyncObjectAcksTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2645,6 +3393,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     storedConflicts,
     notificationStates,
     quarantinedObjects,
+    syncChannelConfigs,
+    syncObjectAcks,
   ];
 }
 
@@ -4313,6 +5063,445 @@ typedef $$QuarantinedObjectsTableProcessedTableManager =
       QuarantinedObject,
       PrefetchHooks Function()
     >;
+typedef $$SyncChannelConfigsTableCreateCompanionBuilder =
+    SyncChannelConfigsCompanion Function({
+      required String ledgerId,
+      required String channel,
+      required String endpointId,
+      required String body,
+      required bool enabled,
+      Value<int> rowid,
+    });
+typedef $$SyncChannelConfigsTableUpdateCompanionBuilder =
+    SyncChannelConfigsCompanion Function({
+      Value<String> ledgerId,
+      Value<String> channel,
+      Value<String> endpointId,
+      Value<String> body,
+      Value<bool> enabled,
+      Value<int> rowid,
+    });
+
+class $$SyncChannelConfigsTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncChannelConfigsTable> {
+  $$SyncChannelConfigsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get ledgerId => $composableBuilder(
+    column: $table.ledgerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endpointId => $composableBuilder(
+    column: $table.endpointId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SyncChannelConfigsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncChannelConfigsTable> {
+  $$SyncChannelConfigsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get ledgerId => $composableBuilder(
+    column: $table.ledgerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endpointId => $composableBuilder(
+    column: $table.endpointId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SyncChannelConfigsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncChannelConfigsTable> {
+  $$SyncChannelConfigsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get ledgerId =>
+      $composableBuilder(column: $table.ledgerId, builder: (column) => column);
+
+  GeneratedColumn<String> get channel =>
+      $composableBuilder(column: $table.channel, builder: (column) => column);
+
+  GeneratedColumn<String> get endpointId => $composableBuilder(
+    column: $table.endpointId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
+}
+
+class $$SyncChannelConfigsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SyncChannelConfigsTable,
+          SyncChannelConfig,
+          $$SyncChannelConfigsTableFilterComposer,
+          $$SyncChannelConfigsTableOrderingComposer,
+          $$SyncChannelConfigsTableAnnotationComposer,
+          $$SyncChannelConfigsTableCreateCompanionBuilder,
+          $$SyncChannelConfigsTableUpdateCompanionBuilder,
+          (
+            SyncChannelConfig,
+            BaseReferences<
+              _$AppDatabase,
+              $SyncChannelConfigsTable,
+              SyncChannelConfig
+            >,
+          ),
+          SyncChannelConfig,
+          PrefetchHooks Function()
+        > {
+  $$SyncChannelConfigsTableTableManager(
+    _$AppDatabase db,
+    $SyncChannelConfigsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncChannelConfigsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncChannelConfigsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncChannelConfigsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> ledgerId = const Value.absent(),
+                Value<String> channel = const Value.absent(),
+                Value<String> endpointId = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SyncChannelConfigsCompanion(
+                ledgerId: ledgerId,
+                channel: channel,
+                endpointId: endpointId,
+                body: body,
+                enabled: enabled,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String ledgerId,
+                required String channel,
+                required String endpointId,
+                required String body,
+                required bool enabled,
+                Value<int> rowid = const Value.absent(),
+              }) => SyncChannelConfigsCompanion.insert(
+                ledgerId: ledgerId,
+                channel: channel,
+                endpointId: endpointId,
+                body: body,
+                enabled: enabled,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SyncChannelConfigsTable, SyncChannelConfig>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $SyncChannelConfigsTable,
+                    SyncChannelConfig
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SyncChannelConfigsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SyncChannelConfigsTable,
+      SyncChannelConfig,
+      $$SyncChannelConfigsTableFilterComposer,
+      $$SyncChannelConfigsTableOrderingComposer,
+      $$SyncChannelConfigsTableAnnotationComposer,
+      $$SyncChannelConfigsTableCreateCompanionBuilder,
+      $$SyncChannelConfigsTableUpdateCompanionBuilder,
+      (
+        SyncChannelConfig,
+        BaseReferences<
+          _$AppDatabase,
+          $SyncChannelConfigsTable,
+          SyncChannelConfig
+        >,
+      ),
+      SyncChannelConfig,
+      PrefetchHooks Function()
+    >;
+typedef $$SyncObjectAcksTableCreateCompanionBuilder =
+    SyncObjectAcksCompanion Function({
+      required String ledgerId,
+      required String channel,
+      required String endpointId,
+      required String batchId,
+      required String sha256,
+      Value<int> rowid,
+    });
+typedef $$SyncObjectAcksTableUpdateCompanionBuilder =
+    SyncObjectAcksCompanion Function({
+      Value<String> ledgerId,
+      Value<String> channel,
+      Value<String> endpointId,
+      Value<String> batchId,
+      Value<String> sha256,
+      Value<int> rowid,
+    });
+
+class $$SyncObjectAcksTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncObjectAcksTable> {
+  $$SyncObjectAcksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get ledgerId => $composableBuilder(
+    column: $table.ledgerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endpointId => $composableBuilder(
+    column: $table.endpointId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get batchId => $composableBuilder(
+    column: $table.batchId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SyncObjectAcksTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncObjectAcksTable> {
+  $$SyncObjectAcksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get ledgerId => $composableBuilder(
+    column: $table.ledgerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get channel => $composableBuilder(
+    column: $table.channel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endpointId => $composableBuilder(
+    column: $table.endpointId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get batchId => $composableBuilder(
+    column: $table.batchId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SyncObjectAcksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncObjectAcksTable> {
+  $$SyncObjectAcksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get ledgerId =>
+      $composableBuilder(column: $table.ledgerId, builder: (column) => column);
+
+  GeneratedColumn<String> get channel =>
+      $composableBuilder(column: $table.channel, builder: (column) => column);
+
+  GeneratedColumn<String> get endpointId => $composableBuilder(
+    column: $table.endpointId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get batchId =>
+      $composableBuilder(column: $table.batchId, builder: (column) => column);
+
+  GeneratedColumn<String> get sha256 =>
+      $composableBuilder(column: $table.sha256, builder: (column) => column);
+}
+
+class $$SyncObjectAcksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SyncObjectAcksTable,
+          SyncObjectAck,
+          $$SyncObjectAcksTableFilterComposer,
+          $$SyncObjectAcksTableOrderingComposer,
+          $$SyncObjectAcksTableAnnotationComposer,
+          $$SyncObjectAcksTableCreateCompanionBuilder,
+          $$SyncObjectAcksTableUpdateCompanionBuilder,
+          (
+            SyncObjectAck,
+            BaseReferences<_$AppDatabase, $SyncObjectAcksTable, SyncObjectAck>,
+          ),
+          SyncObjectAck,
+          PrefetchHooks Function()
+        > {
+  $$SyncObjectAcksTableTableManager(
+    _$AppDatabase db,
+    $SyncObjectAcksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncObjectAcksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncObjectAcksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncObjectAcksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> ledgerId = const Value.absent(),
+                Value<String> channel = const Value.absent(),
+                Value<String> endpointId = const Value.absent(),
+                Value<String> batchId = const Value.absent(),
+                Value<String> sha256 = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SyncObjectAcksCompanion(
+                ledgerId: ledgerId,
+                channel: channel,
+                endpointId: endpointId,
+                batchId: batchId,
+                sha256: sha256,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String ledgerId,
+                required String channel,
+                required String endpointId,
+                required String batchId,
+                required String sha256,
+                Value<int> rowid = const Value.absent(),
+              }) => SyncObjectAcksCompanion.insert(
+                ledgerId: ledgerId,
+                channel: channel,
+                endpointId: endpointId,
+                batchId: batchId,
+                sha256: sha256,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SyncObjectAcksTable, SyncObjectAck>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $SyncObjectAcksTable,
+                    SyncObjectAck
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SyncObjectAcksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SyncObjectAcksTable,
+      SyncObjectAck,
+      $$SyncObjectAcksTableFilterComposer,
+      $$SyncObjectAcksTableOrderingComposer,
+      $$SyncObjectAcksTableAnnotationComposer,
+      $$SyncObjectAcksTableCreateCompanionBuilder,
+      $$SyncObjectAcksTableUpdateCompanionBuilder,
+      (
+        SyncObjectAck,
+        BaseReferences<_$AppDatabase, $SyncObjectAcksTable, SyncObjectAck>,
+      ),
+      SyncObjectAck,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4335,4 +5524,8 @@ class $AppDatabaseManager {
       $$NotificationStatesTableTableManager(_db, _db.notificationStates);
   $$QuarantinedObjectsTableTableManager get quarantinedObjects =>
       $$QuarantinedObjectsTableTableManager(_db, _db.quarantinedObjects);
+  $$SyncChannelConfigsTableTableManager get syncChannelConfigs =>
+      $$SyncChannelConfigsTableTableManager(_db, _db.syncChannelConfigs);
+  $$SyncObjectAcksTableTableManager get syncObjectAcks =>
+      $$SyncObjectAcksTableTableManager(_db, _db.syncObjectAcks);
 }

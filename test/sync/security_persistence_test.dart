@@ -208,12 +208,14 @@ void main() {
   );
   for (final interrupt in [true, false]) {
     test(
-      'schema2 to schema3 interruption=$interrupt retains original ciphertext',
+      'schema2 to schema4 interruption=$interrupt retains original ciphertext',
       () async {
         final f = await SyncFixture.create(await createLedgerBundle(id(1)));
         final object = await f.seal(base);
         await f.engine.ingest(object);
         await f.db.customStatement('DROP TABLE quarantined_objects');
+        await f.db.customStatement('DROP TABLE sync_channel_configs');
+        await f.db.customStatement('DROP TABLE sync_object_acks');
         await f.db.customStatement('PRAGMA user_version = 2');
         await f.close();
         if (interrupt) {
@@ -231,7 +233,7 @@ void main() {
           expect(
             (await db.customSelect('PRAGMA user_version').getSingle())
                 .read<int>('user_version'),
-            3,
+            4,
           );
           expect(
             (await LedgerStore(db, id(1)).objects()).single.bytes,

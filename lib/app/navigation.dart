@@ -8,6 +8,7 @@ import '../features/ledger/ui/calendar_page.dart';
 import '../features/ledger/ui/payments_page.dart';
 import '../features/ledger/ui/settings_page.dart';
 import 'services.dart';
+import '../features/sync/ui/conflicts_page.dart';
 
 class LedgerNavigation extends StatefulWidget {
   const LedgerNavigation({super.key, required this.services});
@@ -106,7 +107,17 @@ class _LedgerNavigationState extends State<LedgerNavigation> {
                     '有 ${services.snapshot!.projection.conflicts.length} 项未解决冲突，受影响的内容暂不作为确定值显示。',
                   ),
                   leading: const Icon(Icons.warning_amber_outlined),
-                  actions: const [SizedBox.shrink()],
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ConflictsPage(services: services),
+                        ),
+                      ),
+                      child: const Text('处理冲突'),
+                    ),
+                  ],
                 ),
               Expanded(child: pages[selected]),
             ],

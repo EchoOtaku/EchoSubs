@@ -14,6 +14,7 @@ import '../../storage/app_database.dart';
 import '../../storage/ledger_store.dart';
 import '../sync/conflict_resolution.dart';
 import '../sync/materializer.dart';
+import '../sync/sync_engine.dart';
 
 class LedgerRepository {
   LedgerRepository(
@@ -85,6 +86,106 @@ class LedgerRepository {
     _current = id;
   }
 
+  /// Authenticates an existing immutable key proof on every access.
+  Future<LedgerKeys> authenticatedKeys([LedgerId? ledgerId]) {
+    final target = ledgerId == null ? store : LedgerStore(database, ledgerId);
+    return _keys(target.ledgerId);
+  }
+
+  /// Imports authenticated history without manufacturing a genesis or changing
+  /// selection. SQLite reserves the identity before touching its vault slots.
+  Future<void> importLedger(
+    LedgerMetadata metadata,
+    LedgerKeys keys,
+    Iterable<StoredObject> objects, {
+    RecoveryCode? recovery,
+  }) async {
+    final id = metadata.id;
+    if (keys.ledgerId != id) invalidModel();
+    if (recovery != null &&
+        !_equalBytes(
+          (await unwrapKeys(metadata, recovery)).rootKey,
+          keys.rootKey,
+        )) {
+      throw const EchoFailure('locked', '恢复密钥不匹配');
+    }
+    final archive = <String, StoredObject>{};
+    final batches = <ChangeBatch>[];
+    final byId = <String, Set<String>>{};
+    for (final object in objects) {
+      final decoded = await codec.open(object.bytes, keys);
+      final verified = await StoredObject.fromBytes(decoded, object.bytes);
+      if (decoded.ledgerId != id ||
+          object.ledgerId != id ||
+          decoded.id != object.batchId ||
+          verified.sha256 != object.sha256)
+        throw const EchoFailure('integrity', '账本历史验证失败');
+      final identity = '${object.batchId}:${object.sha256}';
+      if (archive.containsKey(identity)) continue;
+      archive[identity] = object;
+      batches.add(decoded);
+      (byId[object.batchId] ??= {}).add(object.sha256);
+    }
+    final analysis = analyzeBatches(
+      batches,
+      quarantinedBatchIds: byId.entries
+          .where((e) => e.value.length > 1)
+          .map((e) => e.key)
+          .toSet(),
+    );
+    final config =
+        analysis.projection.entities[EntityRef(EntityKind.ledgerConfig, id)];
+    if (archive.isEmpty ||
+        config is! LedgerConfig ||
+        config.id != id ||
+        analysis.projection.pendingBatchIds.isNotEmpty) {
+      throw const EchoFailure('integrity', '账本历史不完整，未加入账本');
+    }
+    final target = LedgerStore(database, id, observer: observer);
+    await target.transaction((tx) async {
+      final existing = (await listLedgers()).contains(id);
+      if (existing) {
+        final current = await _keys(id);
+        if (!_equalBytes(current.rootKey, keys.rootKey) ||
+            !_equalBytes(
+              (await target.metadata()).encode(),
+              metadata.encode(),
+            )) {
+          throw const EchoFailure('locked', '已有账本与加入授权不匹配');
+        }
+      } else {
+        await tx.register(metadata);
+      }
+      final oldRoot = await vault.get(rootKeyName(id));
+      final oldRecovery = await vault.get(recoveryKeyName(id));
+      if (oldRoot != null && !_equalBytes(oldRoot, keys.rootKey)) {
+        throw const EchoFailure('locked', '已有账本密钥不匹配');
+      }
+      if (oldRecovery != null) {
+        final retained = RecoveryCode.parse(utf8.decode(oldRecovery));
+        if (!_equalBytes(
+              (await unwrapKeys(metadata, retained)).rootKey,
+              keys.rootKey,
+            ) ||
+            (recovery != null && retained.encoded != recovery.encoded)) {
+          throw const EchoFailure('locked', '已有恢复密钥不匹配');
+        }
+      }
+      // Matching orphan slots from a failed transaction are retained verbatim.
+      if (oldRoot == null) await vault.put(rootKeyName(id), keys.rootKey);
+      if (oldRecovery == null && recovery != null) {
+        await vault.put(
+          recoveryKeyName(id),
+          Uint8List.fromList(utf8.encode(recovery.encoded)),
+        );
+      }
+      final engine = SyncEngine(target, keys, codec: codec);
+      for (final object in archive.values) {
+        await engine.ingest(object);
+      }
+    });
+  }
+
   Future<void> create(LedgerConfig config, LedgerBundle bundle) async {
     final id = bundle.metadata.id;
     if (bundle.keys.ledgerId != id ||
@@ -125,16 +226,34 @@ class LedgerRepository {
     createdAtUtc: DateTime.now().toUtc(),
     mutations: changes,
   );
-  Future<BatchId> commit(List<Mutation> changes) =>
-      _commitTo(store, List.unmodifiable(changes));
-  Future<BatchId> resolve(Conflict conflict, List<Mutation> resolution) =>
-      _commitTo(store, List.unmodifiable(resolution), resolutionOf: conflict);
+  Future<BatchId> commit(
+    List<Mutation> changes, {
+    LedgerId? expectedLedgerId,
+  }) => _commitTo(
+    store,
+    List.unmodifiable(changes),
+    expectedLedgerId: expectedLedgerId,
+  );
+  Future<BatchId> resolve(
+    Conflict conflict,
+    List<Mutation> resolution, {
+    LedgerId? expectedLedgerId,
+  }) => _commitTo(
+    store,
+    List.unmodifiable(resolution),
+    resolutionOf: conflict,
+    expectedLedgerId: expectedLedgerId,
+  );
 
   Future<BatchId> _commitTo(
     LedgerStore target,
     List<Mutation> changes, {
     Conflict? resolutionOf,
+    LedgerId? expectedLedgerId,
   }) async {
+    if (expectedLedgerId != null && target.ledgerId != expectedLedgerId) {
+      throw const EchoFailure('conflict', '账本已切换，请重新打开表单');
+    }
     final keys = await _keys(target.ledgerId);
     final batch = _batch(target.ledgerId, changes);
     final object = await StoredObject.fromBytes(
@@ -142,6 +261,8 @@ class LedgerRepository {
       await codec.seal(batch, keys),
     );
     await target.transaction((tx) async {
+      if (_current != target.ledgerId)
+        throw const EchoFailure('conflict', '账本已切换，请重新打开表单');
       if (resolutionOf == null) {
         await tx.validateParents(changes);
       } else {
@@ -167,17 +288,22 @@ class LedgerRepository {
     return batch.id;
   }
 
-  Future<BatchId> renew(Subscription updated, Payment payment) async {
+  Future<BatchId> renew(
+    Subscription updated,
+    Payment payment, {
+    LedgerId? expectedLedgerId,
+    List<BatchId>? baseParents,
+  }) async {
     final target = store;
     if (payment.subscriptionId != updated.id) invalidModel();
     final snapshot = await target.snapshot();
     final ref = EntityRef(updated.kind, updated.id);
     if (!snapshot.projection.entities.containsKey(ref)) invalidModel();
-    final parents = snapshot.causal.parentsFor(ref);
+    final parents = baseParents ?? snapshot.causal.parentsFor(ref);
     return _commitTo(target, [
       Mutation(ref, parents, updated),
       Mutation(EntityRef(payment.kind, payment.id), [], payment),
-    ]);
+    ], expectedLedgerId: expectedLedgerId);
   }
 
   Future<LedgerSnapshot> snapshot() => store.snapshot();

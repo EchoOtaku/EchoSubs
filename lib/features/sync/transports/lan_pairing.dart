@@ -274,6 +274,15 @@ class LanPeerStore {
     return count;
   }
 
+  Future<List<PairedPeer>> list(LedgerId ledger) async {
+    final peers = <PairedPeer>[];
+    for (final id in await _index(ledger)) {
+      final peer = await get(ledger, id);
+      if (peer != null) peers.add(peer);
+    }
+    return List.unmodifiable(peers);
+  }
+
   Future<void> revoke(LedgerId ledger, DeviceId remote) {
     final base = _base(ledger, remote);
     _revisions[base] = (_revisions[base] ?? 0) + 1;

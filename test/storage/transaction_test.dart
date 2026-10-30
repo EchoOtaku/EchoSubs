@@ -212,7 +212,7 @@ void main() {
             .customSelect('PRAGMA user_version')
             .getSingle()
             .then((r) => r.read<int>('user_version')),
-        3,
+        4,
       );
       await db.close();
       final reopened = await AppDatabase.open(file);

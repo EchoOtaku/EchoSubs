@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../app/services.dart';
 import '../../../core/model/civil_date.dart';
+import '../../../core/model/change_batch.dart';
+import '../../../core/model/errors.dart';
 import '../../../core/model/ids.dart';
 import '../../../core/model/money.dart';
 import '../../../core/model/payment.dart';
@@ -22,6 +24,13 @@ class SubscriptionDetailPage extends StatefulWidget {
 }
 
 class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
+  late final String ledgerId;
+  @override
+  void initState() {
+    super.initState();
+    ledgerId = widget.services.ledger.currentLedgerId!;
+  }
+
   String? error;
   bool busy = false;
   Future<void> perform(Future<void> Function() action) async {
@@ -73,6 +82,12 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.services,
     builder: (context, _) {
+      if (ledgerId != widget.services.ledger.currentLedgerId) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('订阅详情')),
+          body: const Center(child: Text('账本已切换，请重新打开详情')),
+        );
+      }
       final s = widget.services.subscriptions
           .where((s) => s.id == widget.subscriptionId)
           .firstOrNull;
@@ -237,6 +252,9 @@ class RenewalEditor extends StatefulWidget {
 }
 
 class _RenewalEditorState extends State<RenewalEditor> {
+  late final LedgerId _ledgerId;
+  late final List<BatchId> _baseParents;
+  late final bool _baseMatches;
   final form = GlobalKey<FormState>();
   final fields = <String, TextEditingController>{};
   bool saving = false;
@@ -244,6 +262,16 @@ class _RenewalEditorState extends State<RenewalEditor> {
   @override
   void initState() {
     super.initState();
+    _ledgerId = widget.services.ledger.currentLedgerId!;
+    _baseMatches =
+        widget.services.snapshot!.projection.entities[EntityRef(
+          widget.value.kind,
+          widget.value.id,
+        )] ==
+        widget.value;
+    _baseParents = widget.services.snapshot!.causal.parentsFor(
+      EntityRef(widget.value.kind, widget.value.id),
+    );
     final s = widget.value;
     final values = {
       'amount': s.price == null ? '' : decimalText(s.price!),
@@ -326,7 +354,13 @@ class _RenewalEditorState extends State<RenewalEditor> {
             ? null
             : date('renewal')?.toJson(),
       });
-      await widget.services.renew(updated, payment);
+      if (!_baseMatches) throw const EchoFailure('conflict', '记录已更新，请重新打开表单');
+      await widget.services.renew(
+        updated,
+        payment,
+        expectedLedgerId: _ledgerId,
+        baseParents: _baseParents,
+      );
       if (mounted) Navigator.pop(context);
     } on Object catch (e) {
       if (mounted)
