@@ -16,16 +16,24 @@ class MemoryVault implements VaultStorage {
   final values = <String, String>{};
   String? failName;
   String? failValue;
+  bool failActiveMarker = false;
   bool failReads = false;
+  Future<void> Function(String name)? beforeRead;
+  Future<void> Function(String name, String value)? beforeWrite;
   @override
   Future<String?> read(String name) async {
+    await beforeRead?.call(name);
     if (failReads) throw StateError('test storage unavailable');
     return values[name];
   }
 
   @override
   Future<void> write(String name, String value) async {
-    if (name == failName && (failValue == null || value == failValue))
+    await beforeWrite?.call(name, value);
+    if ((name == failName && (failValue == null || value == failValue)) ||
+        (failActiveMarker &&
+            name.endsWith('.state') &&
+            base64Decode(value).first == 1))
       throw StateError('test interrupted write');
     values[name] = value;
   }
@@ -298,8 +306,7 @@ void main() {
     expect(await LanPeerStore(f.hostVault).get(id(1), id(3)), isNull);
   });
   test('failed final activation marker is unusable after reopen', () async {
-    f.hostStorage.failName = 'echosubs.v1.lan.peer.${id(1)}.${id(3)}.state';
-    f.hostStorage.failValue = 'AQ==';
+    f.hostStorage.failActiveMarker = true;
     await expectLater(
       f.guestPairing.join(await f.offer()),
       throwsA(isA<EchoFailure>()),
@@ -307,6 +314,112 @@ void main() {
     final restoredVault = KeyVault(storage: f.hostStorage);
     expect(await LanPeerStore(restoredVault).get(id(1), id(3)), isNull);
   });
+  test(
+    'concurrent revoke survives blocked activation and failed tombstone',
+    () async {
+      final peer = await f.guestPairing.join(await f.offer());
+      final replacement = PairedPeer.fromJson({
+        ...peer.toJson(),
+        'pairingId': id(901),
+      });
+      final stateName = 'echosubs.v1.lan.peer.${id(1)}.${id(2)}.state';
+      final entered = Completer<void>(), release = Completer<void>();
+      var blocked = false;
+      f.guestStorage.beforeWrite = (name, value) async {
+        if (name == stateName && base64Decode(value).first == 1 && !blocked) {
+          blocked = true;
+          entered.complete();
+          await release.future;
+        }
+      };
+      final saving = f.guests
+          .save(
+            replacement,
+            inboundToken: Uint8List.fromList(List.filled(32, 11)),
+            outboundToken: Uint8List.fromList(List.filled(32, 12)),
+            stillValid: () => true,
+          )
+          .then<Object?>((_) => null, onError: (Object error) => error);
+      await entered.future.timeout(const Duration(seconds: 5));
+      f.guestStorage.failName = stateName;
+      f.guestStorage.failValue = base64Encode([0]);
+      final revoking = f.guests
+          .revoke(id(1), id(2))
+          .then<Object?>((_) => null, onError: (Object error) => error);
+      release.complete();
+      expect(await saving, isA<EchoFailure>());
+      expect(await revoking, isA<EchoFailure>());
+      // A second store sharing this app's Vault must retain the immediate deny
+      // even though the storage backend refused the tombstone.
+      expect(await LanPeerStore(f.guestVault).get(id(1), id(2)), isNull);
+      expect(base64Decode(f.guestStorage.values[stateName]!).first, 1);
+      // The failed tombstone is not magically durable. A later explicit
+      // re-pair, however, owns the new revision and may activate fresh tokens.
+      f.guestStorage.failName = null;
+      final approvedLater = PairedPeer.fromJson({
+        ...replacement.toJson(),
+        'pairingId': id(903),
+      });
+      await f.guests.save(
+        approvedLater,
+        inboundToken: Uint8List.fromList(List.filled(32, 13)),
+        outboundToken: Uint8List.fromList(List.filled(32, 14)),
+        stillValid: () => true,
+      );
+      expect((await f.guests.get(id(1), id(2)))!.pairingId, id(903));
+    },
+  );
+  test(
+    'token read racing re-pair cannot return new credentials to old identity',
+    () async {
+      final peer = await f.guestPairing.join(await f.offer());
+      final replacementIdentity = await LanIdentity.loadOrCreate(
+        KeyVault(storage: MemoryVault()),
+        id(2),
+      );
+      final replacement = PairedPeer.fromJson({
+        ...peer.toJson(),
+        ...replacementIdentity.certificate.toJson(),
+        'pairingId': id(902),
+        'address': '127.0.0.2',
+      });
+      final secretName = 'echosubs.v1.${peer.credentialRef}';
+      final entered = Completer<void>(), release = Completer<void>();
+      var reads = 0;
+      f.guestStorage.beforeRead = (name) async {
+        // First read belongs to get(), second is token()'s credential fetch.
+        if (name == secretName && ++reads == 2) {
+          entered.complete();
+          await release.future;
+        }
+      };
+      final oldTokenAccepted = f.guests
+          .token(peer, inbound: false)
+          .then<bool>(
+            (_) => true,
+            onError: (Object error) {
+              expect(error, isA<EchoFailure>());
+              return false;
+            },
+          );
+      await entered.future.timeout(const Duration(seconds: 5));
+      await f.guests.save(
+        replacement,
+        inboundToken: Uint8List.fromList(List.filled(32, 21)),
+        outboundToken: Uint8List.fromList(List.filled(32, 22)),
+        stillValid: () => true,
+      );
+      release.complete();
+      // Assert a boolean so a regression never prints credential material.
+      expect(await oldTokenAccepted, false);
+      final current = await f.guests.get(id(1), id(2));
+      expect(
+        current!.certificate.fingerprint,
+        replacementIdentity.certificate.fingerprint,
+      );
+      expect((await f.guests.token(current, inbound: false)).length, 32);
+    },
+  );
   test(
     'joining never overwrites already registered root and recovery slots',
     () async {

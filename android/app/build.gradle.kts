@@ -7,7 +7,8 @@ plugins {
 // A process-scoped opt-in keeps integration tests out of the user's app data.
 val isolatedIntegration = providers.environmentVariable("ECHOSUBS_INTEGRATION_TEST").orNull == "1"
 val dartTarget = providers.gradleProperty("target").orNull?.replace('\\', '/') ?: ""
-check(!dartTarget.contains("integration_test/") || isolatedIntegration) {
+val integrationTarget = dartTarget.contains("integration_test/")
+check(!integrationTarget || isolatedIntegration) {
     "Integration targets require ECHOSUBS_INTEGRATION_TEST=1; use integration_test/support/run_native.ps1"
 }
 
@@ -46,6 +47,14 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+androidComponents {
+    beforeVariants(selector().all()) { variant ->
+        // Non-debug integration variants must not exist: their applicationId
+        // would otherwise still be the production ID. Leave normal builds alone.
+        if (integrationTarget && variant.buildType != "debug") variant.enable = false
     }
 }
 

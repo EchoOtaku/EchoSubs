@@ -77,6 +77,7 @@ class PairingOffer {
 
 class PairedPeer {
   PairedPeer({
+    required this.pairingId,
     required this.ledgerId,
     required this.localDeviceId,
     required this.localFingerprint,
@@ -86,10 +87,14 @@ class PairedPeer {
     required this.credentialRef,
     this.authorizedLedger,
   }) {
+    validateId(pairingId);
     validateId(ledgerId);
     validateId(localDeviceId);
     validateLanEndpoint(address, port);
   }
+
+  /// Public, random generation binding the record, credentials and active marker.
+  final String pairingId;
   final LedgerId ledgerId;
   final DeviceId localDeviceId;
   final String localFingerprint;
@@ -99,6 +104,7 @@ class PairedPeer {
   final String credentialRef;
   final AuthorizedLedger? authorizedLedger;
   Map<String, Object?> toJson() => {
+    'pairingId': pairingId,
     ...certificate.toJson(),
     'ledgerId': ledgerId,
     'localDeviceId': localDeviceId,
@@ -109,6 +115,7 @@ class PairedPeer {
   };
   factory PairedPeer.fromJson(Map<String, dynamic> m) => parseModel(
     () => PairedPeer(
+      pairingId: m['pairingId'] as String,
       ledgerId: m['ledgerId'] as String,
       localDeviceId: m['localDeviceId'] as String,
       localFingerprint: m['localFingerprint'] as String,
@@ -128,7 +135,9 @@ class LanPeerStore {
   final KeyVault vault;
   static final _queues = Expando<Future<void>>();
   static final _denials = Expando<Set<String>>();
+  static final _revocations = Expando<Map<String, int>>();
   Set<String> get _denied => _denials[vault] ??= <String>{};
+  Map<String, int> get _revisions => _revocations[vault] ??= <String, int>{};
   String _base(LedgerId ledger, DeviceId remote) {
     validateId(ledger);
     validateId(remote);
@@ -162,61 +171,78 @@ class LanPeerStore {
     required Uint8List inboundToken,
     required Uint8List outboundToken,
     required bool Function() stillValid,
-  }) => _serial(() async {
-    if (inboundToken.length != 32 ||
-        outboundToken.length != 32 ||
-        !stillValid())
-      throw lanAuthentication;
+  }) {
     final base = _base(peer.ledgerId, peer.certificate.deviceId);
-    if (peer.credentialRef != '$base.secret') invalidModel();
-    final index = await _index(peer.ledgerId);
-    if (!index.contains(peer.certificate.deviceId) && index.length >= 64)
-      throw const EchoFailure('unavailable', '局域网配对设备已达上限');
-    _denied.add(base);
-    await vault.put('$base.state', Uint8List.fromList([0]));
-    await vault.put(
-      '$base.secret',
-      Uint8List.fromList([...inboundToken, ...outboundToken]),
-    );
-    await vault.put(
-      '$base.record',
-      Uint8List.fromList(utf8.encode(jsonEncode(peer.toJson()))),
-    );
-    if (!index.contains(peer.certificate.deviceId))
-      index.add(peer.certificate.deviceId);
-    await vault.put(
-      'lan.index.${peer.ledgerId}',
-      Uint8List.fromList(utf8.encode(jsonEncode(index))),
-    );
-    if (!stillValid()) throw lanAuthentication;
-    await vault.put('$base.state', Uint8List.fromList([1]));
-    if (!stillValid()) {
+    // Capture before queueing: a save requested before revoke must not acquire
+    // that later revocation's permission to clear the immediate deny.
+    final revision = _revisions[base] ?? 0;
+    bool valid() => stillValid() && (_revisions[base] ?? 0) == revision;
+    return _serial(() async {
+      if (inboundToken.length != 32 || outboundToken.length != 32 || !valid())
+        throw lanAuthentication;
+      if (peer.credentialRef != '$base.secret') invalidModel();
+      final index = await _index(peer.ledgerId);
+      if (!index.contains(peer.certificate.deviceId) && index.length >= 64)
+        throw const EchoFailure('unavailable', '局域网配对设备已达上限');
+      _denied.add(base);
       await vault.put('$base.state', Uint8List.fromList([0]));
-      throw lanAuthentication;
-    }
-    _denied.remove(base);
-  });
+      await vault.put(
+        '$base.secret',
+        Uint8List.fromList([
+          ...utf8.encode(peer.pairingId),
+          ...inboundToken,
+          ...outboundToken,
+        ]),
+      );
+      await vault.put(
+        '$base.record',
+        Uint8List.fromList(utf8.encode(jsonEncode(peer.toJson()))),
+      );
+      if (!index.contains(peer.certificate.deviceId))
+        index.add(peer.certificate.deviceId);
+      await vault.put(
+        'lan.index.${peer.ledgerId}',
+        Uint8List.fromList(utf8.encode(jsonEncode(index))),
+      );
+      if (!valid()) throw lanAuthentication;
+      await vault.put(
+        '$base.state',
+        Uint8List.fromList([1, ...utf8.encode(peer.pairingId)]),
+      );
+      if (!valid()) {
+        await vault.put('$base.state', Uint8List.fromList([0]));
+        throw lanAuthentication;
+      }
+      _denied.remove(base);
+    });
+  }
+
   Future<PairedPeer?> get(LedgerId ledger, DeviceId remote) async {
     final base = _base(ledger, remote);
     if (_denied.contains(base) || !(await _index(ledger)).contains(remote))
       return null;
     final state = await vault.get('$base.state');
-    if (state == null || !lanEqual(state, [1])) return null;
+    // Legacy generation-free markers and partial writes are never active.
+    if (state == null || state.length != 33 || state.first != 1) return null;
     final raw = await vault.get('$base.record');
     final secrets = await vault.get('$base.secret');
-    if (raw == null || secrets == null || secrets.length != 64)
+    if (raw == null || secrets == null || secrets.length != 96)
       throw lanAuthentication;
-    final peer = PairedPeer.fromJson(
-      jsonDecode(utf8.decode(raw)) as Map<String, dynamic>,
+    final peer = parseModel(
+      () => PairedPeer.fromJson(
+        jsonDecode(utf8.decode(raw)) as Map<String, dynamic>,
+      ),
     );
     if (peer.ledgerId != ledger ||
         peer.certificate.deviceId != remote ||
-        peer.credentialRef != '$base.secret')
+        peer.credentialRef != '$base.secret' ||
+        !lanEqual(state.sublist(1), utf8.encode(peer.pairingId)) ||
+        !lanEqual(secrets.sublist(0, 32), utf8.encode(peer.pairingId)))
       throw lanAuthentication;
     final finalState = await vault.get('$base.state');
     if (_denied.contains(base) ||
         finalState == null ||
-        !lanEqual(finalState, [1]))
+        !lanEqual(finalState, state))
       return null;
     return peer;
   }
@@ -228,10 +254,16 @@ class LanPeerStore {
             canonicalModelJson(expected.toJson()))
       throw lanAuthentication;
     final raw = await vault.get(peer.credentialRef);
-    if (raw == null || raw.length != 64) throw lanAuthentication;
-    if (await get(peer.ledgerId, peer.certificate.deviceId) == null)
+    if (raw == null ||
+        raw.length != 96 ||
+        !lanEqual(raw.sublist(0, 32), utf8.encode(peer.pairingId)))
       throw lanAuthentication;
-    return Uint8List.fromList(inbound ? raw.sublist(0, 32) : raw.sublist(32));
+    final current = await get(peer.ledgerId, peer.certificate.deviceId);
+    if (current == null ||
+        canonicalModelJson(current.toJson()) !=
+            canonicalModelJson(expected.toJson()))
+      throw lanAuthentication;
+    return Uint8List.fromList(inbound ? raw.sublist(32, 64) : raw.sublist(64));
   }
 
   Future<int> approvedPeerCount(LedgerId ledger) async {
@@ -244,6 +276,7 @@ class LanPeerStore {
 
   Future<void> revoke(LedgerId ledger, DeviceId remote) {
     final base = _base(ledger, remote);
+    _revisions[base] = (_revisions[base] ?? 0) + 1;
     _denied.add(
       base,
     ); // Immediate denial even if the secure-storage write fails.
@@ -410,6 +443,7 @@ class PairingService {
         throw lanAuthentication;
       final inbound = secureBytes(32);
       final peer = PairedPeer(
+        pairingId: newId(),
         ledgerId: state.offer.ledgerId,
         localDeviceId: identity.deviceId,
         localFingerprint: identity.certificate.fingerprint,
@@ -514,6 +548,7 @@ class PairingService {
         LedgerKeys(offer.ledgerId, base64Decode(grant['root'] as String)),
       );
       final peer = PairedPeer(
+        pairingId: newId(),
         ledgerId: offer.ledgerId,
         localDeviceId: identity.deviceId,
         localFingerprint: identity.certificate.fingerprint,
