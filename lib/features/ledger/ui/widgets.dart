@@ -108,6 +108,14 @@ class SubscriptionRow extends StatelessWidget {
         relevantDate(value) != null &&
         today != null &&
         relevantDate(value)!.compareTo(today!) < 0;
+    final entitlementOverdue =
+        today != null &&
+        value.entitlementEnd != null &&
+        value.entitlementEnd!.compareTo(today!) < 0;
+    final renewalOverdue =
+        today != null &&
+        value.nextRenewalDate != null &&
+        value.nextRenewalDate!.compareTo(today!) < 0;
     return Card(
       child: ListTile(
         onTap: onTap,
@@ -127,7 +135,9 @@ class SubscriptionRow extends StatelessWidget {
             children: [
               if (value.provider?.isNotEmpty == true) Text(value.provider!),
               Text('${moneyText(value.price)} · ${cycleText(value)}'),
-              Text('${statusText(value.status)}${overdue ? ' · 已过期' : ''}'),
+              Text(
+                '${statusText(value.status)}${entitlementOverdue ? ' · 权益已过期' : ''}${renewalOverdue ? ' · 预计续费已逾期（待确认）' : ''}',
+              ),
               if (value.entitlementEnd != null)
                 Text('权益到期 ${dateText(value.entitlementEnd)}'),
               if (value.nextRenewalDate != null)

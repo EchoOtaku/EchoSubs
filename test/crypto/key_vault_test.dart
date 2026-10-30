@@ -34,18 +34,16 @@ void main() {
         throwsA(isA<EchoFailure>().having((e) => e.code, 'code', 'locked')),
       );
       store.fail = true;
-      for (final action in [
-        () => vault.get('root'),
-        () => vault.put('root', Uint8List(32)),
+      for (final (action, code) in [
+        (() => vault.get('root'), 'locked'),
+        (() => vault.put('root', Uint8List(32)), 'unavailable'),
       ]) {
         await expectLater(
           action(),
           throwsA(
-            isA<EchoFailure>().having(
-              (e) => e.toString(),
-              'safe',
-              isNot(contains('SECRET')),
-            ),
+            isA<EchoFailure>()
+                .having((e) => e.code, 'code', code)
+                .having((e) => e.toString(), 'safe', isNot(contains('SECRET'))),
           ),
         );
       }

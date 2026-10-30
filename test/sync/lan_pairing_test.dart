@@ -292,7 +292,12 @@ void main() {
           throwsA(isA<EchoFailure>()),
         );
         f.hostStorage.failName = null;
-        expect(await LanPeerStore(f.hostVault).get(id(1), id(3)), isNull);
+        expect(
+          await LanPeerStore(
+            KeyVault(storage: f.hostStorage),
+          ).get(id(1), id(3)),
+          isNull,
+        );
         expect(await f.guests.approvedPeerCount(id(1)), 0);
       },
     );
@@ -303,7 +308,10 @@ void main() {
       f.guestPairing.join(await f.offer()),
       throwsA(isA<EchoFailure>()),
     );
-    expect(await LanPeerStore(f.hostVault).get(id(1), id(3)), isNull);
+    expect(
+      await LanPeerStore(KeyVault(storage: f.hostStorage)).get(id(1), id(3)),
+      isNull,
+    );
   });
   test('failed final activation marker is unusable after reopen', () async {
     f.hostStorage.failActiveMarker = true;
@@ -465,7 +473,10 @@ void main() {
       await expectLater(f.hosts.get(id(1), id(3)), throwsA(isA<EchoFailure>()));
       f.hostStorage.failReads = false;
       await f.hosts.revoke(id(1), id(3));
-      expect(await LanPeerStore(f.hostVault).get(id(1), id(3)), isNull);
+      expect(
+        await LanPeerStore(KeyVault(storage: f.hostStorage)).get(id(1), id(3)),
+        isNull,
+      );
     },
   );
   test(

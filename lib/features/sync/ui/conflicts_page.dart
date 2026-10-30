@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../app/services.dart';
 import '../../../core/model/change_batch.dart';
 import '../../../core/model/ledger.dart';
+import '../../../core/model/subscription.dart';
+import '../../../core/model/payment.dart';
+import '../../ledger/ui/widgets.dart';
 import '../../../storage/ledger_store.dart';
 
 class ConflictsPage extends StatelessWidget {
@@ -148,7 +151,7 @@ class _ConflictEditorState extends State<_ConflictEditor> {
             Text('${_entityKind(ref.kind)} · ${ref.id}'),
             for (var i = 0; i < variants.length; i++) ...[
               Text(
-                '版本 ${i + 1}：${variants[i] == null ? '删除标记' : _describe(variants[i]!)}',
+                '版本 ${i + 1}：${variants[i] == null ? '删除标记' : describeConflictEntity(variants[i]!)}',
               ),
               OutlinedButton(
                 onPressed: busy
@@ -184,7 +187,7 @@ String _entityKind(EntityKind kind) => switch (kind) {
   EntityKind.category => '分类',
   EntityKind.ledgerConfig => '账本设置',
 };
-String _describe(LedgerEntity entity) {
+String describeConflictEntity(LedgerEntity entity) {
   const labels = {
     'name': '名称',
     'provider': '服务提供商',
@@ -210,10 +213,55 @@ String _describe(LedgerEntity entity) {
     'periodEnd': '付费周期结束',
     'timeZoneId': '账本时区',
   };
+  String value(String key, Object? raw) {
+    if (entity is Subscription) {
+      final s = entity;
+      switch (key) {
+        case 'price':
+          return moneyText(s.price);
+        case 'cycle':
+          return cycleText(s);
+        case 'status':
+          return statusText(s.status);
+        case 'billingType':
+          return billingText(s.billingType);
+        case 'autoRenew':
+          return s.autoRenew ? '是（仅预期）' : '否';
+        case 'reminderRule':
+          final r = s.reminderRule;
+          return r.daysBefore.isEmpty
+              ? '已关闭'
+              : '提前 ${r.daysBefore.join('、')} 天，账本时间 ${r.localHour.toString().padLeft(2, '0')}:${r.localMinute.toString().padLeft(2, '0')}';
+        case 'cycleAnchor':
+          return dateText(s.cycleAnchor);
+        case 'startDate':
+          return dateText(s.startDate);
+        case 'entitlementEnd':
+          return dateText(s.entitlementEnd);
+        case 'nextRenewalDate':
+          return dateText(s.nextRenewalDate);
+      }
+    }
+    if (entity is Payment) {
+      final p = entity;
+      switch (key) {
+        case 'amount':
+          return moneyText(p.amount);
+        case 'paidOn':
+          return dateText(p.paidOn);
+        case 'periodStart':
+          return dateText(p.periodStart);
+        case 'periodEnd':
+          return dateText(p.periodEnd);
+      }
+    }
+    return raw.toString();
+  }
+
   return entity
       .toJson()
       .entries
       .where((e) => e.key != 'id' && e.value != null)
-      .map((e) => '${labels[e.key] ?? e.key}：${e.value}')
+      .map((e) => '${labels[e.key] ?? e.key}：${value(e.key, e.value)}')
       .join('\n');
 }

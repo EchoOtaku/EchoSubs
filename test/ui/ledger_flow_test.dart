@@ -215,7 +215,13 @@ void main() {
         );
         await tester.pumpAndSettle();
         await enter('field.name', '${original.name} 已编辑');
+        await enter('field.channel', '虚构兑换渠道');
         await save('editor.save');
+        final edited = services.subscriptions.singleWhere(
+          (s) => s.id == original.id,
+        );
+        expect(edited.purchaseChannel, '虚构兑换渠道');
+        expect(edited.provider, original.provider);
       }
       await tester.tap(find.byKey(const ValueKey('nav.subscriptions')));
       await tester.pumpAndSettle();

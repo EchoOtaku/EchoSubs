@@ -68,8 +68,16 @@ class OverviewPage extends StatelessWidget {
           '总览',
           subtitle: '${services.today.toJson()} · ${active.length} 项使用中的服务',
         ),
-        costs,
-        const SizedBox(height: 28),
+        if (services.syncStatus.failure != null)
+          Text('同步异常：${services.syncStatus.failure}'),
+        for (final channel in [
+          services.syncStatus.report.lan,
+          services.syncStatus.report.webdav,
+        ])
+          if (channel.enabled && (!channel.succeeded))
+            Text(
+              '同步待处理：待上传 ${channel.pendingUpload} · 待补依赖 ${channel.pendingDependencies} · 冲突 ${channel.conflicts} · 隔离 ${channel.quarantined}${channel.errors.isEmpty ? '' : ' · ${channel.errors.join('；')}'}',
+            ),
         if (services.subscriptions.isEmpty)
           EmptyLedger(onAdd: onAdd)
         else ...[
@@ -112,6 +120,28 @@ class OverviewPage extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
+        const SizedBox(height: 28),
+        costs,
+        const SizedBox(height: 28),
+        Text('分类总览', style: Theme.of(context).textTheme.titleLarge),
+        for (final categoryId in {
+          ...services.categories.map((c) => c.id),
+          ...active.map((s) => s.categoryId),
+        })
+          ListTile(
+            title: Text(
+              categoryId == null
+                  ? '未分类'
+                  : services.categories
+                            .where((c) => c.id == categoryId)
+                            .firstOrNull
+                            ?.name ??
+                        '未知分类',
+            ),
+            subtitle: Text(
+              '${active.where((s) => s.categoryId == categoryId).length} 项使用中',
+            ),
+          ),
       ],
     );
   }

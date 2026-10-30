@@ -196,7 +196,21 @@ class DurableReminderAdapter implements ReminderAdapter {
       access = await permission();
       final time = now().toUtc();
       final previous = await store.all();
+      cancellationRisk.addAll(
+        previous
+            .where((r) => r.phase != ReminderPhase.cancelled)
+            .expand((r) => r.batch.events),
+      );
       final pending = await platform.pending();
+      cancellationRisk.addAll(
+        previous
+            .where(
+              (r) =>
+                  r.phase == ReminderPhase.cancelled &&
+                  pending.containsKey(r.id),
+            )
+            .expand((r) => r.batch.events),
+      );
       final consumed = <String>{};
       for (final record in previous) {
         // Once the scheduled instant has passed, an interrupted call MAY already
@@ -249,12 +263,20 @@ class DurableReminderAdapter implements ReminderAdapter {
             continue;
           record.phase = ReminderPhase.cancelling;
           await store.save(record);
-          cancellationRisk.addAll(record.batch.events);
           await platform.cancel(record.id);
-          cancellationRisk.clear();
           pending.remove(record.id);
           record.phase = ReminderPhase.cancelled;
           await store.save(record);
+          final cancelled = record.batch.events
+              .map(
+                (e) => '${e.stableKey}/${e.scheduledAtUtc.toIso8601String()}',
+              )
+              .toSet();
+          cancellationRisk.removeWhere(
+            (e) => cancelled.contains(
+              '${e.stableKey}/${e.scheduledAtUtc.toIso8601String()}',
+            ),
+          );
         }
       }
       if (access != ReminderPermission.granted) {
@@ -327,11 +349,12 @@ class DurableReminderAdapter implements ReminderAdapter {
         checked: true,
         unscheduled: List.unmodifiable(
           {
-            for (final e in [...events, ...cancellationRisk]) e.stableKey: e,
+            for (final e in [...events, ...cancellationRisk])
+              '${e.stableKey}/${e.scheduledAtUtc.toIso8601String()}': e,
           }.values,
         ),
         error: e is EchoFailure
-            ? e.safeMessage
+            ? '${e.safeMessage}；旧提醒可能仍有效，请重新核对'
             : '提醒核对未完成，旧提醒可能仍有效，请重试（取消或读回失败）',
       );
     }

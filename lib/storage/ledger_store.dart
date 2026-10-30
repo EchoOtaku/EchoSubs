@@ -47,7 +47,9 @@ class LedgerSnapshot {
     this.projection,
     Iterable<BatchId> pendingBatchIds, {
     Iterable<QuarantineCandidate> quarantinedObjects = const [],
+    CausalAnalysis? causal,
   }) : batches = List.unmodifiable(batches),
+       _causal = causal,
        pendingBatchIds = List.unmodifiable(pendingBatchIds),
        quarantinedObjects = List.unmodifiable(quarantinedObjects);
   final LedgerMetadata metadata;
@@ -58,10 +60,13 @@ class LedgerSnapshot {
   /// Legacy pendingBatchIds denotes only transport outbox, never causal pending.
   List<BatchId> get pendingUploadIds => pendingBatchIds;
   final List<QuarantineCandidate> quarantinedObjects;
-  late final CausalAnalysis causal = analyzeBatches([
-    ...batches,
-    ...quarantinedObjects.map((q) => q.batch),
-  ], quarantinedBatchIds: quarantinedObjects.map((q) => q.batch.id).toSet());
+  final CausalAnalysis? _causal;
+  late final CausalAnalysis causal =
+      _causal ??
+      analyzeBatches(
+        [...batches, ...quarantinedObjects.map((q) => q.batch)],
+        quarantinedBatchIds: quarantinedObjects.map((q) => q.batch.id).toSet(),
+      );
   Set<BatchId> get quarantinedBatchIds => causal.quarantinedBatchIds;
 }
 
@@ -194,6 +199,7 @@ class LedgerStore {
       analysis.projection,
       pending,
       quarantinedObjects: quarantined,
+      causal: analysis,
     );
   });
   Stream<LedgerProjection> watch() => database

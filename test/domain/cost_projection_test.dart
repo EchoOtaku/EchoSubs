@@ -27,6 +27,35 @@ Subscription sub({
   autoRenew: autoRenew,
 );
 void main() {
+  test('exact aggregate half-up boundary and int64 overflow', () {
+    expect(
+      summarizeCosts([
+        sub(price: '0.01', count: 4),
+        sub(price: '0.01', count: 4),
+      ], []).estimatedMonthly['CNY']!.minorUnits,
+      1,
+    );
+    expect(
+      summarizeCosts([
+        sub(price: '0.01', count: 5),
+        sub(price: '0.01', count: 5),
+      ], []).estimatedMonthly['CNY']!.minorUnits,
+      0,
+    );
+    final huge = sub(
+      price: '9223372036854775807',
+      scale: 0,
+      unit: CycleUnit.year,
+    );
+    expect(() => summarizeCosts([huge, huge], []), throwsA(isA<EchoFailure>()));
+    final paid = Payment(
+      id: '00000000000000000000000000000002',
+      subscriptionId: huge.id,
+      amount: huge.price!,
+      paidOn: CivilDate(2026, 10, 30),
+    );
+    expect(() => summarizeCosts([], [paid, paid]), throwsA(isA<EchoFailure>()));
+  });
   test('cost summaries compare by immutable currency amounts', () {
     final first = summarizeCosts([sub()], []);
     final second = summarizeCosts([sub()], []);

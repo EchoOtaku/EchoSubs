@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:xml/xml.dart';
+import 'package:xml/xml_events.dart';
 import '../../../core/model/errors.dart';
 import 'sync_transport.dart';
 
@@ -44,16 +45,18 @@ List<ObjectRef> parseDavListing(Uint8List bytes, Uri directory) {
       invalidDav(); // DTD, entities and other declarations.
     var depth = 0;
     var count = 0;
-    for (final tag in RegExp(r'<[^>]*>').allMatches(text)) {
-      final value = tag.group(0)!;
+    for (final event in parseEvents(text)) {
       if (++count > 100000) invalidDav();
-      if (value.startsWith('</')) {
+      if (event is XmlEndElementEvent) {
         depth--;
-      } else if (!value.startsWith('<?') && !value.endsWith('/>')) {
+      } else if (event is XmlStartElementEvent) {
         depth++;
+        if (depth > 64) invalidDav();
+        if (event.isSelfClosing) depth--;
       }
       if (depth < 0 || depth > 64) invalidDav();
     }
+    if (depth != 0) invalidDav();
     final document = XmlDocument.parse(text);
     final root = document.rootElement;
     if (root.name.local != 'multistatus' || root.namespaceUri != 'DAV:')

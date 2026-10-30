@@ -26,6 +26,7 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "dev.echootaku.echo_subs"
+        manifestPlaceholders["appLabel"] = "EchoSubs 订阅簿"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24
@@ -40,7 +41,10 @@ android {
 
     buildTypes {
         getByName("debug") {
-            if (isolatedIntegration) applicationIdSuffix = ".integration"
+            if (isolatedIntegration) {
+                applicationIdSuffix = ".integration"
+                manifestPlaceholders["appLabel"] = "EchoSubs 集成测试"
+            }
         }
         release {
             // TODO: Add your own signing config for the release build.
