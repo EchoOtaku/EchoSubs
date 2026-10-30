@@ -16,6 +16,50 @@ import '../sync/conflict_resolution.dart';
 import '../sync/materializer.dart';
 import '../sync/sync_engine.dart';
 
+/// Ordinary joining still requires a confirmed projected configuration.
+/// Only an explicit backup restore may preserve an unavailable configuration.
+enum LedgerImportPolicy { join, backupRestore }
+
+/// Checks semantic completeness after the caller authenticates every object.
+/// [analysis] must be derived from these batches, including ciphertext collisions.
+void validateLedgerImportHistory(
+  LedgerId ledgerId,
+  List<ChangeBatch> batches,
+  CausalAnalysis analysis, {
+  LedgerImportPolicy policy = LedgerImportPolicy.join,
+}) {
+  final ref = EntityRef(EntityKind.ledgerConfig, ledgerId);
+  final config = analysis.projection.entities[ref];
+  if (batches.isEmpty ||
+      batches.any((b) => b.ledgerId != ledgerId) ||
+      analysis.projection.pendingBatchIds.isNotEmpty) {
+    throw const EchoFailure('integrity', '账本历史不完整，未加入账本');
+  }
+  if (policy == LedgerImportPolicy.backupRestore) {
+    final ids = batches.map((b) => b.id).toSet();
+    if (batches
+        .expand((b) => b.mutations)
+        .expand((m) => m.parentBatchIds)
+        .any((id) => !ids.contains(id))) {
+      throw const EchoFailure('conflict', '历史仍缺少依赖，请先补齐同步后备份');
+    }
+  }
+  if (config is LedgerConfig && config.id == ledgerId) return;
+  final hasHistoricalConfig = batches.any(
+    (b) => b.mutations.any(
+      (m) => m.ref == ref && m.value is LedgerConfig && m.value!.id == ledgerId,
+    ),
+  );
+  final unavailableBecauseOfEvidence =
+      analysis.unsafeRefs.contains(ref) ||
+      analysis.projection.conflicts.any((c) => c.affectedRefs.contains(ref));
+  if (policy == LedgerImportPolicy.backupRestore &&
+      hasHistoricalConfig &&
+      unavailableBecauseOfEvidence)
+    return;
+  throw const EchoFailure('integrity', '账本历史缺少可验证配置，未加入账本');
+}
+
 class LedgerRepository {
   LedgerRepository(
     this.database,
@@ -99,6 +143,7 @@ class LedgerRepository {
     LedgerKeys keys,
     Iterable<StoredObject> objects, {
     RecoveryCode? recovery,
+    LedgerImportPolicy policy = LedgerImportPolicy.join,
   }) async {
     final id = metadata.id;
     if (keys.ledgerId != id) invalidModel();
@@ -133,14 +178,7 @@ class LedgerRepository {
           .map((e) => e.key)
           .toSet(),
     );
-    final config =
-        analysis.projection.entities[EntityRef(EntityKind.ledgerConfig, id)];
-    if (archive.isEmpty ||
-        config is! LedgerConfig ||
-        config.id != id ||
-        analysis.projection.pendingBatchIds.isNotEmpty) {
-      throw const EchoFailure('integrity', '账本历史不完整，未加入账本');
-    }
+    validateLedgerImportHistory(id, batches, analysis, policy: policy);
     final target = LedgerStore(database, id, observer: observer);
     await target.transaction((tx) async {
       final existing = (await listLedgers()).contains(id);

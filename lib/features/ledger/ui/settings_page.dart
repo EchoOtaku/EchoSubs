@@ -53,7 +53,9 @@ class SettingsPage extends StatelessWidget {
               const Text('账本 ID'),
               SelectableText(services.ledger.currentLedgerId ?? '未选择'),
               const SizedBox(height: 12),
-              Text('账本时区：${services.config?.timeZoneId ?? '未填写'}'),
+              Text(
+                '账本时区：${services.configurationNeedsConfirmation ? '配置待确认，日期提醒已暂停' : services.config?.timeZoneId ?? '未填写'}',
+              ),
               const SizedBox(height: 12),
               const Text('数据保存在此设备的应用支持目录。离线可添加、编辑订阅并记录付款。'),
               const SizedBox(height: 12),

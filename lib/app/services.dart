@@ -226,6 +226,15 @@ class AppServices extends ChangeNotifier {
   LedgerConfig? get config => snapshot?.projection.entities.values
       .whereType<LedgerConfig>()
       .firstOrNull;
+  bool get configurationNeedsConfirmation {
+    final state = snapshot;
+    if (state == null) return false;
+    final ref = EntityRef(EntityKind.ledgerConfig, state.metadata.id);
+    return config == null ||
+        state.causal.unsafeRefs.contains(ref) ||
+        state.projection.conflicts.any((c) => c.affectedRefs.contains(ref));
+  }
+
   CivilDate get today {
     tzdata.initializeTimeZones();
     final date = tz.TZDateTime.now(tz.getLocation(config?.timeZoneId ?? 'UTC'));

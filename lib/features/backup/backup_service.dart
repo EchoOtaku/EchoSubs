@@ -27,6 +27,13 @@ class RestorePreview {
   int get entityCount => _analysis.projection.entities.length;
   int get conflictCount => _analysis.projection.conflicts.length;
   int get quarantinedBatchCount => _analysis.quarantinedBatchIds.length;
+  bool get configurationNeedsConfirmation {
+    final ref = EntityRef(EntityKind.ledgerConfig, _batches.first.ledgerId);
+    return !_analysis.projection.entities.containsKey(ref) ||
+        _analysis.unsafeRefs.contains(ref) ||
+        _analysis.projection.conflicts.any((c) => c.affectedRefs.contains(ref));
+  }
+
   int get paymentVersionCount => _batches
       .expand((b) => b.mutations)
       .where((m) => m.ref.kind == EntityKind.payment && m.value != null)
@@ -79,13 +86,12 @@ class BackupService {
           if (e.value > 1) e.key,
       },
     );
-    final config = analysis
-        .projection
-        .entities[EntityRef(EntityKind.ledgerConfig, archive.metadata.id)];
-    if (config is! LedgerConfig ||
-        analysis.projection.pendingBatchIds.isNotEmpty) {
-      throw const EchoFailure('integrity', '账本历史不完整或配置存在争议');
-    }
+    validateLedgerImportHistory(
+      archive.metadata.id,
+      batches,
+      analysis,
+      policy: LedgerImportPolicy.backupRestore,
+    );
     return _ArchiveState(archive, List.unmodifiable(batches), analysis);
   }
 
@@ -180,6 +186,7 @@ class BackupService {
         bundle.keys,
         objects,
         recovery: bundle.recovery,
+        policy: LedgerImportPolicy.backupRestore,
       );
       final snapshot = await LedgerStore(db, bundle.metadata.id).snapshot();
       final persisted = {
@@ -232,6 +239,7 @@ class BackupService {
       bundle.keys,
       validatedObjects,
       recovery: bundle.recovery,
+      policy: LedgerImportPolicy.backupRestore,
     );
     return bundle.metadata.id;
   }

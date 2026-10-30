@@ -175,7 +175,12 @@ class _BackupPageState extends State<BackupPage> {
     final recovery = await backup.recoveryFor(id);
     if (recovery != null) await showRecovery(recovery, newlyRestored: true);
     if (mounted)
-      setState(() => status = '已恢复为独立新账本。同步保持关闭，当前账本未切换。请到“同步与账本”另行选择。');
+      setState(
+        () => status =
+            '已恢复为独立新账本。同步保持关闭，当前账本未切换。'
+            '${selected.configurationNeedsConfirmation ? '配置待确认，日期提醒保持暂停。' : ''}'
+            '请到“同步与账本”另行选择。',
+      );
   });
   @override
   Widget build(BuildContext context) => PopScope(
@@ -215,6 +220,8 @@ class _BackupPageState extends State<BackupPage> {
                       '${p.conflictCount} 个未解决冲突 · ${p.quarantinedBatchCount} 个隔离批次',
                     ),
                     const Text('恢复将生成新的账本身份、主密钥与恢复密钥。保留原账本，两个同步通道默认关闭。'),
+                    if (p.configurationNeedsConfirmation)
+                      const Text('配置待确认：保留全部历史与隔离证据，日期提醒保持暂停。'),
                     FilledButton(
                       onPressed: busy ? null : restore,
                       child: const Text('确认恢复为新账本'),
