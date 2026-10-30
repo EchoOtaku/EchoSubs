@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../app/services.dart';
 import 'widgets.dart';
 import '../../sync/ui/sync_settings_page.dart';
+import '../../reminders/ui/reminder_settings_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.services});
@@ -55,7 +56,17 @@ class SettingsPage extends StatelessWidget {
               const SizedBox(height: 12),
               const Text('数据保存在此设备的应用支持目录。离线可添加、编辑订阅并记录付款。'),
               const SizedBox(height: 12),
-              const Text('同步通道可独立启用，未配置时保持离线。系统提醒与备份尚未接入。'),
+              const Text('同步通道可独立启用，未配置时保持离线。手机使用本地提醒，Windows 在应用运行时提示。'),
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ReminderSettingsPage(services: services),
+                  ),
+                ),
+                icon: const Icon(Icons.notifications_outlined),
+                label: const Text('本地提醒与权限'),
+              ),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: () => Navigator.push(

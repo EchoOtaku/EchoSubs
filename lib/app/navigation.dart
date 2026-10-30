@@ -90,6 +90,21 @@ class _LedgerNavigationState extends State<LedgerNavigation> {
         } else {
           body = Column(
             children: [
+              if (services.inAppReminders != null)
+                ValueListenableBuilder<String?>(
+                  valueListenable: services.inAppReminders!.banner,
+                  builder: (context, message, _) => message == null
+                      ? const SizedBox.shrink()
+                      : MaterialBanner(
+                          content: Text(message),
+                          actions: [
+                            TextButton(
+                              onPressed: services.inAppReminders!.dismiss,
+                              child: const Text('知道了'),
+                            ),
+                          ],
+                        ),
+                ),
               if (services.error != null)
                 MaterialBanner(
                   content: Text(services.error!),

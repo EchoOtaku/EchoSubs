@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 import '../core/crypto/key_vault.dart';
 import '../core/crypto/ledger_metadata.dart';
@@ -20,6 +21,8 @@ import '../storage/ledger_store.dart';
 import '../features/sync/sync_coordinator.dart';
 import '../features/sync/sync_status.dart';
 import '../features/sync/sync_runtime.dart';
+import '../features/reminders/reminder_adapter.dart';
+import '../features/reminders/reminder_reconciler.dart';
 
 /// Local client services. Repository injection keeps widgets platform independent.
 class AppServices extends ChangeNotifier {
@@ -57,6 +60,51 @@ class AppServices extends ChangeNotifier {
   Future<void> Function()? rebindSync;
   Future<void> Function(bool foreground)? syncLifecycle;
   Future<void> Function()? closeSyncRuntime;
+  ReminderReconciler? reminders;
+  InAppReminderPlatform? inAppReminders;
+  void attachReminders(ReminderReconciler reconciler) {
+    if (_disposed) {
+      unawaited(reconciler.close());
+      return;
+    }
+    final old = reminders;
+    old?.removeListener(_remindersChanged);
+    if (old != null && old != reconciler) unawaited(old.close());
+    reminders = reconciler;
+    reconciler.addListener(_remindersChanged);
+    unawaited(reconciler.reconcile());
+  }
+
+  SyncStatus _reminderStatus(SyncStatus s) => SyncStatus(
+    running: s.running,
+    report: s.report,
+    remindersReconciled: reminders?.complete ?? false,
+    retryMessage: s.retryMessage,
+    failure: s.failure,
+    failureCode: s.failureCode,
+  );
+  void _remindersChanged() {
+    syncStatus = _reminderStatus(syncStatus);
+    _changed();
+  }
+
+  Future<void> reconcileReminders() async {
+    await reminders?.reconcile();
+  }
+
+  Future<void> remindersForeground(bool foreground) async {
+    inAppReminders?.setForeground(foreground);
+    if (foreground) await refresh();
+  }
+
+  Future<void> closeReminders() async {
+    final old = reminders;
+    reminders = null;
+    old?.removeListener(_remindersChanged);
+    await old?.close();
+    inAppReminders = null;
+  }
+
   void attachSync(SyncCoordinator coordinator) {
     if (coordinator.store.ledgerId != ledger.currentLedgerId || _disposed) {
       unawaited(coordinator.close());
@@ -76,7 +124,7 @@ class AppServices extends ChangeNotifier {
           syncCoordinator != coordinator ||
           coordinator.store.ledgerId != ledger.currentLedgerId)
         return;
-      syncStatus = value;
+      syncStatus = _reminderStatus(value);
       _changed();
     });
     _syncChanges = coordinator.store.watch().listen((_) async {
@@ -192,6 +240,7 @@ class AppServices extends ChangeNotifier {
           _changed();
         },
       );
+      await reconcileReminders();
     } on Object catch (e) {
       if (_disposed || generation != _generation || read != _read) return;
       error = safeError(e);
@@ -212,6 +261,7 @@ class AppServices extends ChangeNotifier {
         return;
       snapshot = state;
       error = null;
+      await reconcileReminders();
     } on Object catch (e) {
       if (_disposed ||
           generation != _generation ||
@@ -258,6 +308,7 @@ class AppServices extends ChangeNotifier {
         _writeLocked = true;
         snapshot = null;
         error = '账本切换未完成，已停止写入。原有数据与密钥已保留。';
+        await reconcileReminders();
         _changed();
       }
       if (restored) {
@@ -287,6 +338,20 @@ class AppServices extends ChangeNotifier {
   void setTheme(ThemeMode mode) {
     themeMode = mode;
     _changed();
+  }
+
+  Future<void> saveLedgerTimeZone(
+    String zone, {
+    required LedgerId expectedLedgerId,
+    required List<BatchId> baseParents,
+  }) async {
+    _requireWritable(expectedLedgerId);
+    tz.getLocation(zone);
+    final config = LedgerConfig(expectedLedgerId, zone);
+    await ledger.commit([
+      Mutation(EntityRef(config.kind, config.id), baseParents, config),
+    ], expectedLedgerId: expectedLedgerId);
+    await refresh();
   }
 
   /// The shared causal analyzer excludes pending/invalid data and rejects conflicts.
@@ -368,6 +433,7 @@ class AppServices extends ChangeNotifier {
     _watch?.cancel();
     unawaited(detachSync());
     unawaited(closeSyncRuntime?.call());
+    unawaited(closeReminders());
     super.dispose();
   }
 
@@ -420,6 +486,21 @@ class AppServices extends ChangeNotifier {
       }
       final services = AppServices(ledger: repository);
       await services.ready;
+      if (database == null) {
+        final ReminderPlatform platform;
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          platform = AndroidReminderPlatform();
+        } else {
+          platform = services.inAppReminders = InAppReminderPlatform();
+        }
+        services.attachReminders(
+          ReminderReconciler(
+            snapshot: () async => services.snapshot,
+            adapter: DurableReminderAdapter(ReminderStateStore(db), platform),
+          ),
+        );
+        await services.reconcileReminders();
+      }
       try {
         await services.syncRuntime.rebind();
       } on Object catch (e) {

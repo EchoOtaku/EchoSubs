@@ -23,10 +23,12 @@ class _EchoSubsAppState extends State<EchoSubsApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       services.syncLifecycle?.call(true);
+      services.remindersForeground(true);
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.hidden) {
       services.syncLifecycle?.call(false);
+      services.remindersForeground(false);
     }
   }
 
@@ -34,6 +36,7 @@ class _EchoSubsAppState extends State<EchoSubsApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     services.syncLifecycle?.call(false);
+    services.remindersForeground(false);
     super.dispose();
   }
 

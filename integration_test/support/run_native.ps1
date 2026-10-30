@@ -3,6 +3,7 @@ param(
     [string]$Device,
     [string]$Aapt,
     [string]$Apk,
+    [ValidateSet('integration_test/lan_pairing_test.dart', 'integration_test/reminders_test.dart')][string]$Target = 'integration_test/lan_pairing_test.dart',
     [Parameter(Mandatory)][string]$OutputDirectory
 )
 $ErrorActionPreference = 'Stop'
@@ -60,15 +61,15 @@ try {
     if ($Platform -eq 'Android') {
         if (-not $Device) { throw 'Specify the existing Android device serial.' }
         $env:ECHOSUBS_INTEGRATION_TEST = '1'
-        Invoke-Native 'android-build' @('build', 'apk', '--debug', '--target', 'integration_test/lan_pairing_test.dart')
+        Invoke-Native 'android-build' @('build', 'apk', '--debug', '--target', $Target)
         $apkPath = Join-Path $repoRoot 'build/app/outputs/flutter-apk/app-debug.apk'
         Assert-IsolatedApk $apkPath
         # flutter test rebuilds the same target with the same process opt-in.
         # --no-uninstall is mandatory even for this separate fictional-data app.
-        Invoke-Native 'android-test' @('test', 'integration_test/lan_pairing_test.dart', '-d', $Device, '--no-uninstall', '--reporter', 'expanded')
+        Invoke-Native 'android-test' @('test', $Target, '-d', $Device, '--no-uninstall', '--reporter', 'expanded')
         Assert-IsolatedApk $apkPath
     } else {
-        Invoke-Native 'windows-test' @('test', 'integration_test/lan_pairing_test.dart', '-d', 'windows', '--no-uninstall', '--reporter', 'expanded')
+        Invoke-Native 'windows-test' @('test', $Target, '-d', 'windows', '--no-uninstall', '--reporter', 'expanded')
     }
 } finally {
     $env:ECHOSUBS_INTEGRATION_TEST = $previousIsolation
