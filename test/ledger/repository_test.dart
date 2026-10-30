@@ -102,7 +102,6 @@ class Fixture {
 
   Future<void> dispose() async {
     await db.close();
-    await dir.delete(recursive: true);
   }
 }
 

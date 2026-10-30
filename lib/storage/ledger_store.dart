@@ -8,6 +8,7 @@ import '../core/model/change_batch.dart';
 import '../core/model/errors.dart';
 import '../core/model/ids.dart';
 import '../core/model/ledger.dart';
+import '../features/sync/materializer.dart';
 import 'app_database.dart';
 
 class StoredObject {
@@ -44,13 +45,33 @@ class LedgerSnapshot {
     this.metadata,
     Iterable<ChangeBatch> batches,
     this.projection,
-    Iterable<BatchId> pendingBatchIds,
-  ) : batches = List.unmodifiable(batches),
-      pendingBatchIds = List.unmodifiable(pendingBatchIds);
+    Iterable<BatchId> pendingBatchIds, {
+    Iterable<QuarantineCandidate> quarantinedObjects = const [],
+  }) : batches = List.unmodifiable(batches),
+       pendingBatchIds = List.unmodifiable(pendingBatchIds),
+       quarantinedObjects = List.unmodifiable(quarantinedObjects);
   final LedgerMetadata metadata;
   final List<ChangeBatch> batches;
   final LedgerProjection projection;
   final List<BatchId> pendingBatchIds;
+
+  /// Legacy pendingBatchIds denotes only transport outbox, never causal pending.
+  List<BatchId> get pendingUploadIds => pendingBatchIds;
+  final List<QuarantineCandidate> quarantinedObjects;
+  late final CausalAnalysis causal = analyzeBatches([
+    ...batches,
+    ...quarantinedObjects.map((q) => q.batch),
+  ], quarantinedBatchIds: quarantinedObjects.map((q) => q.batch.id).toSet());
+  Set<BatchId> get quarantinedBatchIds => causal.quarantinedBatchIds;
+}
+
+enum QuarantineReason { idCollision, invalidCausality }
+
+class QuarantineCandidate {
+  const QuarantineCandidate(this.object, this.batch, this.reason);
+  final StoredObject object;
+  final ChangeBatch batch;
+  final QuarantineReason reason;
 }
 
 enum StorageCheckpoint { afterPaymentWrite, beforeObjectWrite, beforeSyncState }
@@ -103,6 +124,24 @@ class LedgerStore {
       StoredObject(r.batchId, r.ledgerId, r.sha256, r.bytes),
   ]);
 
+  /// Full authenticated evidence for conflict UI and lossless backups.
+  Future<List<QuarantineCandidate>> quarantinedObjects() async =>
+      List.unmodifiable([
+        for (final r
+            in await (database.select(database.quarantinedObjects)
+                  ..where((r) => r.ledgerId.equals(ledgerId))
+                  ..orderBy([
+                    (r) => OrderingTerm.asc(r.batchId),
+                    (r) => OrderingTerm.asc(r.sha256),
+                  ]))
+                .get())
+          QuarantineCandidate(
+            StoredObject(r.batchId, r.ledgerId, r.sha256, r.bytes),
+            ChangeBatch.fromJson(jsonDecode(r.body) as Map<String, dynamic>),
+            QuarantineReason.values.byName(r.reason),
+          ),
+      ]);
+
   /// Reads at most one blob; absence cannot establish ownership of a root key.
   Future<LedgerKeyProof?> keyProof() => database.transaction(() async {
     final row =
@@ -144,33 +183,17 @@ class LedgerStore {
             .map((r) => r.batchId)
             .toList()
           ..sort();
-    final conflicts =
-        (await (database.select(
-              database.storedConflicts,
-            )..where((r) => r.ledgerId.equals(ledgerId))).get())
-            .map(
-              (r) =>
-                  Conflict.fromJson(jsonDecode(r.body) as Map<String, dynamic>),
-            )
-            .toList();
-    final heads = _heads(batches);
-    final entities = <EntityRef, LedgerEntity>{};
-    for (final entry in heads.entries) {
-      if (entry.value.length == 1 &&
-          !conflicts.any((c) => c.affectedRefs.contains(entry.key))) {
-        final value = entry.value.values.single;
-        if (value != null) entities[entry.key] = value;
-      }
-    }
+    final quarantined = await quarantinedObjects();
+    final analysis = analyzeBatches([
+      ...batches,
+      ...quarantined.map((q) => q.batch),
+    ], quarantinedBatchIds: quarantined.map((q) => q.batch.id).toSet());
     return LedgerSnapshot(
       meta,
       batches,
-      LedgerProjection(
-        entities: entities,
-        conflicts: conflicts,
-        pendingBatchIds: pending,
-      ),
+      analysis.projection,
       pending,
+      quarantinedObjects: quarantined,
     );
   });
   Stream<LedgerProjection> watch() => database
@@ -182,6 +205,7 @@ class LedgerStore {
           database.changeBatches,
           database.pendingUploads,
           database.storedConflicts,
+          database.quarantinedObjects,
         },
       )
       .watch()
@@ -197,21 +221,6 @@ class LedgerStore {
     )..where((r) => r.ledgerId.equals(ledgerId))).get())
       row.notificationId: row.body,
   });
-}
-
-Map<EntityRef, Map<BatchId, LedgerEntity?>> _heads(List<ChangeBatch> batches) {
-  final heads = <EntityRef, Map<BatchId, LedgerEntity?>>{};
-  final retired = <EntityRef, Set<BatchId>>{};
-  for (final batch in batches) {
-    for (final m in batch.mutations) {
-      heads.putIfAbsent(m.ref, () => {})[batch.id] = m.value;
-      retired.putIfAbsent(m.ref, () => {}).addAll(m.parentBatchIds);
-    }
-  }
-  for (final entry in heads.entries) {
-    entry.value.removeWhere((key, _) => retired[entry.key]!.contains(key));
-  }
-  return heads;
 }
 
 /// Valid only during its callback. Incoming objects must be authenticated by codec first.
@@ -247,14 +256,44 @@ class LedgerTransaction {
   }
 
   Future<void> validateParents(List<Mutation> changes) async {
-    final heads = _heads((await snapshot()).batches);
+    final causal = (await snapshot()).causal;
     for (final m in changes) {
-      final expected = heads[m.ref]?.keys.toSet() ?? <String>{};
+      final expected = causal.parentsFor(m.ref).toSet();
       if (expected.length != m.parentBatchIds.length ||
           !expected.containsAll(m.parentBatchIds)) {
         throw const EchoFailure('conflict', '记录已更新，请重新加载');
       }
     }
+  }
+
+  /// Call only with the matching authenticated batch and immutable ciphertext.
+  Future<void> quarantine(
+    ChangeBatch batch,
+    StoredObject object,
+    QuarantineReason reason,
+  ) async {
+    if (batch.ledgerId != _id ||
+        object.ledgerId != _id ||
+        batch.id != object.batchId ||
+        (await StoredObject.fromBytes(batch, object.bytes)).sha256 !=
+            object.sha256 ||
+        object.bytes.length > maxCryptoObjectBytes) {
+      throw const EchoFailure('integrity', '隔离对象不匹配');
+    }
+    await _db
+        .into(_db.quarantinedObjects)
+        .insert(
+          QuarantinedObjectsCompanion.insert(
+            ledgerId: _id,
+            batchId: batch.id,
+            sha256: object.sha256,
+            bytes: object.bytes,
+            body: canonicalJson(batch.toJson()),
+            reason: reason.name,
+          ),
+          mode: InsertMode.insertOrIgnore,
+        );
+    await acknowledge(batch.id);
   }
 
   Future<void> append(

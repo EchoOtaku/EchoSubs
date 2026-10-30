@@ -12,6 +12,8 @@ import '../../core/model/payment.dart';
 import '../../core/model/subscription.dart';
 import '../../storage/app_database.dart';
 import '../../storage/ledger_store.dart';
+import '../sync/conflict_resolution.dart';
+import '../sync/materializer.dart';
 
 class LedgerRepository {
   LedgerRepository(
@@ -125,7 +127,14 @@ class LedgerRepository {
   );
   Future<BatchId> commit(List<Mutation> changes) =>
       _commitTo(store, List.unmodifiable(changes));
-  Future<BatchId> _commitTo(LedgerStore target, List<Mutation> changes) async {
+  Future<BatchId> resolve(Conflict conflict, List<Mutation> resolution) =>
+      _commitTo(store, List.unmodifiable(resolution), resolutionOf: conflict);
+
+  Future<BatchId> _commitTo(
+    LedgerStore target,
+    List<Mutation> changes, {
+    Conflict? resolutionOf,
+  }) async {
     final keys = await _keys(target.ledgerId);
     final batch = _batch(target.ledgerId, changes);
     final object = await StoredObject.fromBytes(
@@ -133,8 +142,27 @@ class LedgerRepository {
       await codec.seal(batch, keys),
     );
     await target.transaction((tx) async {
-      await tx.validateParents(changes);
+      if (resolutionOf == null) {
+        await tx.validateParents(changes);
+      } else {
+        validateConflictResolution(
+          (await tx.snapshot()).causal,
+          resolutionOf,
+          changes,
+        );
+      }
+      final state = await tx.snapshot();
+      final proposed = analyzeBatches([
+        ...state.batches,
+        batch,
+        ...state.quarantinedObjects.map((q) => q.batch),
+      ], quarantinedBatchIds: state.quarantinedBatchIds);
+      if (proposed.quarantinedBatchIds.contains(batch.id) ||
+          proposed.projection.pendingBatchIds.contains(batch.id)) {
+        throw const EchoFailure('conflict', '变更没有完整且有效的因果依赖');
+      }
       await tx.append(batch, object);
+      await tx.replaceConflicts(proposed.projection.conflicts);
     });
     return batch.id;
   }
@@ -145,15 +173,7 @@ class LedgerRepository {
     final snapshot = await target.snapshot();
     final ref = EntityRef(updated.kind, updated.id);
     if (!snapshot.projection.entities.containsKey(ref)) invalidModel();
-    final parents = snapshot.batches
-        .where((b) => b.mutations.any((m) => m.ref == ref))
-        .map((b) => b.id)
-        .toSet();
-    for (final b in snapshot.batches) {
-      for (final m in b.mutations.where((m) => m.ref == ref)) {
-        parents.removeAll(m.parentBatchIds);
-      }
-    }
+    final parents = snapshot.causal.parentsFor(ref);
     return _commitTo(target, [
       Mutation(ref, parents, updated),
       Mutation(EntityRef(payment.kind, payment.id), [], payment),

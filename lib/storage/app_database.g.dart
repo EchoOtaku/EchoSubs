@@ -2199,6 +2199,420 @@ class NotificationStatesCompanion extends UpdateCompanion<NotificationState> {
   }
 }
 
+class $QuarantinedObjectsTable extends QuarantinedObjects
+    with TableInfo<$QuarantinedObjectsTable, QuarantinedObject> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $QuarantinedObjectsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _ledgerIdMeta = const VerificationMeta(
+    'ledgerId',
+  );
+  @override
+  late final GeneratedColumn<String> ledgerId = GeneratedColumn<String>(
+    'ledger_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _batchIdMeta = const VerificationMeta(
+    'batchId',
+  );
+  @override
+  late final GeneratedColumn<String> batchId = GeneratedColumn<String>(
+    'batch_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sha256Meta = const VerificationMeta('sha256');
+  @override
+  late final GeneratedColumn<String> sha256 = GeneratedColumn<String>(
+    'sha256',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bytesMeta = const VerificationMeta('bytes');
+  @override
+  late final GeneratedColumn<Uint8List> bytes = GeneratedColumn<Uint8List>(
+    'bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    ledgerId,
+    batchId,
+    sha256,
+    bytes,
+    body,
+    reason,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'quarantined_objects';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<QuarantinedObject> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('ledger_id')) {
+      context.handle(
+        _ledgerIdMeta,
+        ledgerId.isAcceptableOrUnknown(data['ledger_id']!, _ledgerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ledgerIdMeta);
+    }
+    if (data.containsKey('batch_id')) {
+      context.handle(
+        _batchIdMeta,
+        batchId.isAcceptableOrUnknown(data['batch_id']!, _batchIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_batchIdMeta);
+    }
+    if (data.containsKey('sha256')) {
+      context.handle(
+        _sha256Meta,
+        sha256.isAcceptableOrUnknown(data['sha256']!, _sha256Meta),
+      );
+    } else if (isInserting) {
+      context.missing(_sha256Meta);
+    }
+    if (data.containsKey('bytes')) {
+      context.handle(
+        _bytesMeta,
+        bytes.isAcceptableOrUnknown(data['bytes']!, _bytesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bytesMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reasonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {ledgerId, batchId, sha256};
+  @override
+  QuarantinedObject map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return QuarantinedObject(
+      ledgerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ledger_id'],
+      )!,
+      batchId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}batch_id'],
+      )!,
+      sha256: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sha256'],
+      )!,
+      bytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}bytes'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      )!,
+    );
+  }
+
+  @override
+  $QuarantinedObjectsTable createAlias(String alias) {
+    return $QuarantinedObjectsTable(attachedDatabase, alias);
+  }
+}
+
+class QuarantinedObject extends DataClass
+    implements Insertable<QuarantinedObject> {
+  final String ledgerId;
+  final String batchId;
+  final String sha256;
+  final Uint8List bytes;
+  final String body;
+  final String reason;
+  const QuarantinedObject({
+    required this.ledgerId,
+    required this.batchId,
+    required this.sha256,
+    required this.bytes,
+    required this.body,
+    required this.reason,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['ledger_id'] = Variable<String>(ledgerId);
+    map['batch_id'] = Variable<String>(batchId);
+    map['sha256'] = Variable<String>(sha256);
+    map['bytes'] = Variable<Uint8List>(bytes);
+    map['body'] = Variable<String>(body);
+    map['reason'] = Variable<String>(reason);
+    return map;
+  }
+
+  QuarantinedObjectsCompanion toCompanion(bool nullToAbsent) {
+    return QuarantinedObjectsCompanion(
+      ledgerId: Value(ledgerId),
+      batchId: Value(batchId),
+      sha256: Value(sha256),
+      bytes: Value(bytes),
+      body: Value(body),
+      reason: Value(reason),
+    );
+  }
+
+  factory QuarantinedObject.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return QuarantinedObject(
+      ledgerId: serializer.fromJson<String>(json['ledgerId']),
+      batchId: serializer.fromJson<String>(json['batchId']),
+      sha256: serializer.fromJson<String>(json['sha256']),
+      bytes: serializer.fromJson<Uint8List>(json['bytes']),
+      body: serializer.fromJson<String>(json['body']),
+      reason: serializer.fromJson<String>(json['reason']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'ledgerId': serializer.toJson<String>(ledgerId),
+      'batchId': serializer.toJson<String>(batchId),
+      'sha256': serializer.toJson<String>(sha256),
+      'bytes': serializer.toJson<Uint8List>(bytes),
+      'body': serializer.toJson<String>(body),
+      'reason': serializer.toJson<String>(reason),
+    };
+  }
+
+  QuarantinedObject copyWith({
+    String? ledgerId,
+    String? batchId,
+    String? sha256,
+    Uint8List? bytes,
+    String? body,
+    String? reason,
+  }) => QuarantinedObject(
+    ledgerId: ledgerId ?? this.ledgerId,
+    batchId: batchId ?? this.batchId,
+    sha256: sha256 ?? this.sha256,
+    bytes: bytes ?? this.bytes,
+    body: body ?? this.body,
+    reason: reason ?? this.reason,
+  );
+  QuarantinedObject copyWithCompanion(QuarantinedObjectsCompanion data) {
+    return QuarantinedObject(
+      ledgerId: data.ledgerId.present ? data.ledgerId.value : this.ledgerId,
+      batchId: data.batchId.present ? data.batchId.value : this.batchId,
+      sha256: data.sha256.present ? data.sha256.value : this.sha256,
+      bytes: data.bytes.present ? data.bytes.value : this.bytes,
+      body: data.body.present ? data.body.value : this.body,
+      reason: data.reason.present ? data.reason.value : this.reason,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('QuarantinedObject(')
+          ..write('ledgerId: $ledgerId, ')
+          ..write('batchId: $batchId, ')
+          ..write('sha256: $sha256, ')
+          ..write('bytes: $bytes, ')
+          ..write('body: $body, ')
+          ..write('reason: $reason')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    ledgerId,
+    batchId,
+    sha256,
+    $driftBlobEquality.hash(bytes),
+    body,
+    reason,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is QuarantinedObject &&
+          other.ledgerId == this.ledgerId &&
+          other.batchId == this.batchId &&
+          other.sha256 == this.sha256 &&
+          $driftBlobEquality.equals(other.bytes, this.bytes) &&
+          other.body == this.body &&
+          other.reason == this.reason);
+}
+
+class QuarantinedObjectsCompanion extends UpdateCompanion<QuarantinedObject> {
+  final Value<String> ledgerId;
+  final Value<String> batchId;
+  final Value<String> sha256;
+  final Value<Uint8List> bytes;
+  final Value<String> body;
+  final Value<String> reason;
+  final Value<int> rowid;
+  const QuarantinedObjectsCompanion({
+    this.ledgerId = const Value.absent(),
+    this.batchId = const Value.absent(),
+    this.sha256 = const Value.absent(),
+    this.bytes = const Value.absent(),
+    this.body = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  QuarantinedObjectsCompanion.insert({
+    required String ledgerId,
+    required String batchId,
+    required String sha256,
+    required Uint8List bytes,
+    required String body,
+    required String reason,
+    this.rowid = const Value.absent(),
+  }) : ledgerId = Value(ledgerId),
+       batchId = Value(batchId),
+       sha256 = Value(sha256),
+       bytes = Value(bytes),
+       body = Value(body),
+       reason = Value(reason);
+  static Insertable<QuarantinedObject> custom({
+    Expression<String>? ledgerId,
+    Expression<String>? batchId,
+    Expression<String>? sha256,
+    Expression<Uint8List>? bytes,
+    Expression<String>? body,
+    Expression<String>? reason,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (ledgerId != null) 'ledger_id': ledgerId,
+      if (batchId != null) 'batch_id': batchId,
+      if (sha256 != null) 'sha256': sha256,
+      if (bytes != null) 'bytes': bytes,
+      if (body != null) 'body': body,
+      if (reason != null) 'reason': reason,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  QuarantinedObjectsCompanion copyWith({
+    Value<String>? ledgerId,
+    Value<String>? batchId,
+    Value<String>? sha256,
+    Value<Uint8List>? bytes,
+    Value<String>? body,
+    Value<String>? reason,
+    Value<int>? rowid,
+  }) {
+    return QuarantinedObjectsCompanion(
+      ledgerId: ledgerId ?? this.ledgerId,
+      batchId: batchId ?? this.batchId,
+      sha256: sha256 ?? this.sha256,
+      bytes: bytes ?? this.bytes,
+      body: body ?? this.body,
+      reason: reason ?? this.reason,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (ledgerId.present) {
+      map['ledger_id'] = Variable<String>(ledgerId.value);
+    }
+    if (batchId.present) {
+      map['batch_id'] = Variable<String>(batchId.value);
+    }
+    if (sha256.present) {
+      map['sha256'] = Variable<String>(sha256.value);
+    }
+    if (bytes.present) {
+      map['bytes'] = Variable<Uint8List>(bytes.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('QuarantinedObjectsCompanion(')
+          ..write('ledgerId: $ledgerId, ')
+          ..write('batchId: $batchId, ')
+          ..write('sha256: $sha256, ')
+          ..write('bytes: $bytes, ')
+          ..write('body: $body, ')
+          ..write('reason: $reason, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2215,6 +2629,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $NotificationStatesTable notificationStates =
       $NotificationStatesTable(this);
+  late final $QuarantinedObjectsTable quarantinedObjects =
+      $QuarantinedObjectsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2228,6 +2644,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     receivedBatches,
     storedConflicts,
     notificationStates,
+    quarantinedObjects,
   ];
 }
 
@@ -3653,6 +4070,249 @@ typedef $$NotificationStatesTableProcessedTableManager =
       NotificationState,
       PrefetchHooks Function()
     >;
+typedef $$QuarantinedObjectsTableCreateCompanionBuilder =
+    QuarantinedObjectsCompanion Function({
+      required String ledgerId,
+      required String batchId,
+      required String sha256,
+      required Uint8List bytes,
+      required String body,
+      required String reason,
+      Value<int> rowid,
+    });
+typedef $$QuarantinedObjectsTableUpdateCompanionBuilder =
+    QuarantinedObjectsCompanion Function({
+      Value<String> ledgerId,
+      Value<String> batchId,
+      Value<String> sha256,
+      Value<Uint8List> bytes,
+      Value<String> body,
+      Value<String> reason,
+      Value<int> rowid,
+    });
+
+class $$QuarantinedObjectsTableFilterComposer
+    extends Composer<_$AppDatabase, $QuarantinedObjectsTable> {
+  $$QuarantinedObjectsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get ledgerId => $composableBuilder(
+    column: $table.ledgerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get batchId => $composableBuilder(
+    column: $table.batchId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$QuarantinedObjectsTableOrderingComposer
+    extends Composer<_$AppDatabase, $QuarantinedObjectsTable> {
+  $$QuarantinedObjectsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get ledgerId => $composableBuilder(
+    column: $table.ledgerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get batchId => $composableBuilder(
+    column: $table.batchId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$QuarantinedObjectsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $QuarantinedObjectsTable> {
+  $$QuarantinedObjectsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get ledgerId =>
+      $composableBuilder(column: $table.ledgerId, builder: (column) => column);
+
+  GeneratedColumn<String> get batchId =>
+      $composableBuilder(column: $table.batchId, builder: (column) => column);
+
+  GeneratedColumn<String> get sha256 =>
+      $composableBuilder(column: $table.sha256, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get bytes =>
+      $composableBuilder(column: $table.bytes, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+}
+
+class $$QuarantinedObjectsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $QuarantinedObjectsTable,
+          QuarantinedObject,
+          $$QuarantinedObjectsTableFilterComposer,
+          $$QuarantinedObjectsTableOrderingComposer,
+          $$QuarantinedObjectsTableAnnotationComposer,
+          $$QuarantinedObjectsTableCreateCompanionBuilder,
+          $$QuarantinedObjectsTableUpdateCompanionBuilder,
+          (
+            QuarantinedObject,
+            BaseReferences<
+              _$AppDatabase,
+              $QuarantinedObjectsTable,
+              QuarantinedObject
+            >,
+          ),
+          QuarantinedObject,
+          PrefetchHooks Function()
+        > {
+  $$QuarantinedObjectsTableTableManager(
+    _$AppDatabase db,
+    $QuarantinedObjectsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$QuarantinedObjectsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$QuarantinedObjectsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$QuarantinedObjectsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> ledgerId = const Value.absent(),
+                Value<String> batchId = const Value.absent(),
+                Value<String> sha256 = const Value.absent(),
+                Value<Uint8List> bytes = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<String> reason = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => QuarantinedObjectsCompanion(
+                ledgerId: ledgerId,
+                batchId: batchId,
+                sha256: sha256,
+                bytes: bytes,
+                body: body,
+                reason: reason,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String ledgerId,
+                required String batchId,
+                required String sha256,
+                required Uint8List bytes,
+                required String body,
+                required String reason,
+                Value<int> rowid = const Value.absent(),
+              }) => QuarantinedObjectsCompanion.insert(
+                ledgerId: ledgerId,
+                batchId: batchId,
+                sha256: sha256,
+                bytes: bytes,
+                body: body,
+                reason: reason,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$QuarantinedObjectsTable, QuarantinedObject>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $QuarantinedObjectsTable,
+                    QuarantinedObject
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$QuarantinedObjectsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $QuarantinedObjectsTable,
+      QuarantinedObject,
+      $$QuarantinedObjectsTableFilterComposer,
+      $$QuarantinedObjectsTableOrderingComposer,
+      $$QuarantinedObjectsTableAnnotationComposer,
+      $$QuarantinedObjectsTableCreateCompanionBuilder,
+      $$QuarantinedObjectsTableUpdateCompanionBuilder,
+      (
+        QuarantinedObject,
+        BaseReferences<
+          _$AppDatabase,
+          $QuarantinedObjectsTable,
+          QuarantinedObject
+        >,
+      ),
+      QuarantinedObject,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3673,4 +4333,6 @@ class $AppDatabaseManager {
       $$StoredConflictsTableTableManager(_db, _db.storedConflicts);
   $$NotificationStatesTableTableManager get notificationStates =>
       $$NotificationStatesTableTableManager(_db, _db.notificationStates);
+  $$QuarantinedObjectsTableTableManager get quarantinedObjects =>
+      $$QuarantinedObjectsTableTableManager(_db, _db.quarantinedObjects);
 }

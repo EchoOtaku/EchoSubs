@@ -94,20 +94,25 @@ void main() {
         final events = <LedgerProjection>[];
         final stream = f.repo.watch().listen(events.add);
         await Future<void>.delayed(const Duration(milliseconds: 30));
+        final eventCount = events.length;
+        expect(
+          (await f.repo.snapshot()).pendingUploadIds,
+          contains(f.originalBatch),
+        );
         await f.repo.store.transaction((tx) async {
           await tx.acknowledge(f.originalBatch);
           await tx.markReceived(f.originalBatch);
           await tx.putNotificationState('test', 'scheduled');
         });
-        for (
-          var n = 0;
-          n < 50 &&
-              events.every((p) => p.pendingBatchIds.contains(f.originalBatch));
-          n++
-        ) {
+        for (var n = 0; n < 50 && events.length <= eventCount; n++) {
           await Future<void>.delayed(const Duration(milliseconds: 10));
         }
         await stream.cancel();
+        expect(events.length, greaterThan(eventCount));
+        expect(
+          (await f.repo.snapshot()).pendingUploadIds,
+          isNot(contains(f.originalBatch)),
+        );
         expect(events.last.pendingBatchIds, isNot(contains(f.originalBatch)));
         expect(await f.repo.store.receivedBatchIds(), {f.originalBatch});
         expect(await f.repo.store.notificationStates(), {'test': 'scheduled'});
@@ -207,7 +212,7 @@ void main() {
             .customSelect('PRAGMA user_version')
             .getSingle()
             .then((r) => r.read<int>('user_version')),
-        2,
+        3,
       );
       await db.close();
       final reopened = await AppDatabase.open(file);
@@ -217,7 +222,7 @@ void main() {
       await expectLater(AppDatabase.open(file), throwsA(isA<Exception>()));
       expect(await file.readAsBytes(), before);
     } finally {
-      await dir.delete(recursive: true);
+      // Keep test artifacts; recursive filesystem cleanup is not authorized.
     }
   });
 }

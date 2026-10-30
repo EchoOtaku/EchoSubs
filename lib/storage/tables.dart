@@ -68,3 +68,15 @@ class NotificationStates extends Table {
   @override
   Set<Column> get primaryKey => {ledgerId, notificationId};
 }
+
+/// Authenticated immutable candidates only. Reason is a fixed protocol code.
+class QuarantinedObjects extends Table {
+  TextColumn get ledgerId => text()();
+  TextColumn get batchId => text()();
+  TextColumn get sha256 => text()();
+  BlobColumn get bytes => blob()();
+  TextColumn get body => text()();
+  TextColumn get reason => text()();
+  @override
+  Set<Column> get primaryKey => {ledgerId, batchId, sha256};
+}

@@ -20,6 +20,7 @@ typedef MigrationCheckpoint = Future<void> Function();
     ReceivedBatches,
     StoredConflicts,
     NotificationStates,
+    QuarantinedObjects,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -36,7 +37,7 @@ class AppDatabase extends _$AppDatabase {
           final version =
               connection.select('PRAGMA user_version').first['user_version']
                   as int;
-          if (version > 2) {
+          if (version > 3) {
             throw const EchoFailure('incompatible', '数据库版本较新');
           }
         },
@@ -61,21 +62,22 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => transaction(() async {
       await m.createAll();
-      await customStatement('PRAGMA user_version = 2');
+      await customStatement('PRAGMA user_version = 3');
     }),
     onUpgrade: (m, from, to) async {
-      if (from != 1 || to != 2)
+      if (from < 1 || from > 2 || to != 3)
         throw const EchoFailure('incompatible', '无法迁移数据库');
       await transaction(() async {
-        await m.createTable(notificationStates);
+        if (from < 2) await m.createTable(notificationStates);
+        await m.createTable(quarantinedObjects);
         // Drift normally updates user_version after onUpgrade returns. Write
         // it here as well so a crash cannot commit the schema without its version.
-        await customStatement('PRAGMA user_version = 2');
+        await customStatement('PRAGMA user_version = 3');
         await _migrationCheckpoint?.call();
       });
     },

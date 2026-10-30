@@ -11,6 +11,7 @@ void main() {
       try {
         final objects = await f.repo.store.objects();
         await f.db.customStatement('DROP TABLE notification_states');
+        await f.db.customStatement('DROP TABLE quarantined_objects');
         await f.db.customStatement('PRAGMA user_version = 1');
         await f.db.close();
         if (interrupt) {
@@ -29,7 +30,7 @@ void main() {
         final version = await f.db
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.read<int>('user_version'), 2);
+        expect(version.read<int>('user_version'), 3);
         expect((await f.db.select(f.db.notificationStates).get()), isEmpty);
         final restored = await f.db.select(f.db.cipherObjects).get();
         expect(restored.length, objects.length);

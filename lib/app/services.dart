@@ -125,17 +125,9 @@ class AppServices extends ChangeNotifier {
     _changed();
   }
 
-  /// Heads are derived from the full causal history, including tombstones.
+  /// The shared causal analyzer excludes pending/invalid data and rejects conflicts.
   static List<BatchId> heads(LedgerSnapshot state, EntityRef ref) {
-    final tips = <BatchId>{};
-    final parents = <BatchId>{};
-    for (final batch in state.batches) {
-      for (final change in batch.mutations.where((m) => m.ref == ref)) {
-        tips.add(batch.id);
-        parents.addAll(change.parentBatchIds);
-      }
-    }
-    return (tips.difference(parents).toList()..sort());
+    return state.causal.parentsFor(ref);
   }
 
   Future<void> saveSubscription(
