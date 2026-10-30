@@ -1,0 +1,22 @@
+# Local development and agent workspaces
+.worktrees/
+.superpowers/
+.local/
+
+# Private application data and exports
+data/
+exports/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+*.key
+*.pem
+*.keystore
+*.jks
+.env
+.env.*
+android/key.properties
