@@ -10,6 +10,83 @@ import 'package:echo_subs/features/ledger/ui/subscription_detail_page.dart';
 import '../support/ledger_harness.dart';
 
 void main() {
+  for (final renewal in [false, true]) {
+    testWidgets(
+      '${renewal ? 'renewal' : 'subscription'} save stays outside focused keyboard',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final h = (await tester.runAsync(LedgerHarness.create))!;
+        addTearDown(h.close);
+        final services = (await tester.runAsync(() async {
+          final s = AppServices(ledger: h.repo);
+          await s.ready;
+          return s;
+        }))!;
+        addTearDown(services.dispose);
+        await tester.pumpWidget(EchoSubsApp(services: services));
+        await tester.pumpAndSettle();
+        final context = tester.element(
+          find.byKey(const ValueKey('nav.overview')),
+        );
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => renewal
+                ? RenewalEditor(
+                    services: services,
+                    value: Subscription(id: newId(), name: '键盘测试服务'),
+                  )
+                : SubscriptionEditor(services: services),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final notes = find.byKey(
+          ValueKey(renewal ? 'payment.notes' : 'field.notes'),
+        );
+        await tester.scrollUntilVisible(
+          notes,
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        await tester.showKeyboard(notes);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(notes);
+        await tester.pumpAndSettle();
+        final textField = tester.widget<EditableText>(
+          find.descendant(of: notes, matching: find.byType(EditableText)),
+        );
+        expect(textField.focusNode.hasFocus, isTrue);
+        final save = find.byKey(
+          ValueKey(renewal ? 'payment.save' : 'editor.save'),
+        );
+        final media = MediaQuery.of(tester.element(save));
+        expect(media.viewInsets.bottom, 300);
+        expect(media.textScaler.scale(10), 15);
+        final keyboardTop = media.size.height - media.viewInsets.bottom;
+        final rect = tester.getRect(save);
+        expect(rect.top, greaterThanOrEqualTo(0));
+        expect(
+          rect.bottom,
+          lessThanOrEqualTo(keyboardTop),
+          reason: '保存按钮必须完全处于软键盘顶部之上，不能只依赖hitTestable',
+        );
+        expect(save.hitTestable(), findsOneWidget);
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        expect(find.text('输入数据无效'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        expect((await tester.runAsync(h.repo.snapshot))!.batches.length, 1);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
   for (final size in [const Size(390, 844), const Size(1280, 800)]) {
     for (final mode in [ThemeMode.light, ThemeMode.dark]) {
       testWidgets('all pages and forms at $size $mode scale 1.5', (

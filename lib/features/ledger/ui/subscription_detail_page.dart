@@ -374,14 +374,17 @@ class _RenewalEditorState extends State<RenewalEditor> {
         ),
       ),
     ),
-    bottomNavigationBar: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: FilledButton.icon(
-          key: const ValueKey('payment.save'),
-          onPressed: saving ? null : save,
-          icon: const Icon(Icons.check),
-          label: Text(saving ? '保存中…' : '保存付款与权益'),
+    bottomNavigationBar: Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: FilledButton.icon(
+            key: const ValueKey('payment.save'),
+            onPressed: saving ? null : save,
+            icon: const Icon(Icons.check),
+            label: Text(saving ? '保存中…' : '保存付款与权益'),
+          ),
         ),
       ),
     ),

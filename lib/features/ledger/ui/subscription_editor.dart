@@ -360,14 +360,17 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
         ),
       ),
     ),
-    bottomNavigationBar: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-        child: FilledButton.icon(
-          key: const ValueKey('editor.save'),
-          onPressed: _saving ? null : save,
-          icon: const Icon(Icons.check),
-          label: Text(_saving ? '保存中…' : '保存订阅'),
+    bottomNavigationBar: Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+          child: FilledButton.icon(
+            key: const ValueKey('editor.save'),
+            onPressed: _saving ? null : save,
+            icon: const Icon(Icons.check),
+            label: Text(_saving ? '保存中…' : '保存订阅'),
+          ),
         ),
       ),
     ),
