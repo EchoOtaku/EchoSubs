@@ -15,8 +15,15 @@ Uint8List canonicalBytes(Object? value) =>
     Uint8List.fromList(utf8.encode(canonicalJson(value)));
 
 /// Bounded parsing, exact canonical encoding also rejects duplicate JSON keys.
-Map<String, dynamic> decodeCryptoObject(Uint8List bytes) => parseModel(() {
-  if (bytes.isEmpty || bytes.length > maxCryptoObjectBytes) invalidModel();
+Map<String, dynamic> decodeCryptoObject(Uint8List bytes) =>
+    decodeBoundedCryptoObject(bytes, maxBytes: maxCryptoObjectBytes);
+
+/// Aggregate callers must explicitly choose their own limit; sync stays 1 MiB.
+Map<String, dynamic> decodeBoundedCryptoObject(
+  Uint8List bytes, {
+  required int maxBytes,
+}) => parseModel(() {
+  if (maxBytes <= 0 || bytes.isEmpty || bytes.length > maxBytes) invalidModel();
   final text = utf8.decode(bytes, allowMalformed: false);
   var depth = 0;
   var quoted = false;

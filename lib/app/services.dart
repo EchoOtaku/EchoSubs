@@ -23,10 +23,12 @@ import '../features/sync/sync_status.dart';
 import '../features/sync/sync_runtime.dart';
 import '../features/reminders/reminder_adapter.dart';
 import '../features/reminders/reminder_reconciler.dart';
+import '../features/backup/backup_service.dart';
 
 /// Local client services. Repository injection keeps widgets platform independent.
 class AppServices extends ChangeNotifier {
   AppServices({required this.ledger}) {
+    attachBackup(BackupService(ledger));
     syncRuntime = SyncRuntime(
       ledger,
       attach: attachSync,
@@ -39,6 +41,19 @@ class AppServices extends ChangeNotifier {
     ready = reload();
   }
   final LedgerRepository ledger;
+  BackupService? backup;
+  void attachBackup(BackupService value) {
+    if (!identical(value.ledger, ledger)) invalidModel();
+    backup = value;
+  }
+
+  Future<LedgerId> restoreBackup(RestorePreview preview) async {
+    _requireWritable();
+    final id = await backup!.restoreAsNew(preview);
+    await refresh();
+    return id;
+  }
+
   late final SyncRuntime syncRuntime;
   late final Future<void> ready;
   StreamSubscription<LedgerProjection>? _watch;

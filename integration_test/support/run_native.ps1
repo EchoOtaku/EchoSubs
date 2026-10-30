@@ -3,7 +3,7 @@ param(
     [string]$Device,
     [string]$Aapt,
     [string]$Apk,
-    [ValidateSet('integration_test/lan_pairing_test.dart', 'integration_test/reminders_test.dart')][string]$Target = 'integration_test/lan_pairing_test.dart',
+    [ValidateSet('integration_test/lan_pairing_test.dart', 'integration_test/reminders_test.dart', 'integration_test/document_access_test.dart')][string]$Target = 'integration_test/lan_pairing_test.dart',
     [Parameter(Mandatory)][string]$OutputDirectory
 )
 $ErrorActionPreference = 'Stop'

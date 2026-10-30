@@ -6,6 +6,8 @@
 # Private application data and exports
 data/
 exports/
+*.echosubsbackup
+*.echosubs-plain.json
 *.sqlite
 *.sqlite3
 *.sqlite-wal
