@@ -331,7 +331,7 @@ class WebDavTransport implements SyncTransport {
       } on EchoFailure {
         rethrow;
       } on HandshakeException {
-        throw const EchoFailure('certificate', 'WebDAV 证书验证失败');
+        throw const EchoFailure('authentication', 'WebDAV 证书验证失败');
       } on Object {
         request?.abort();
         if (cancelled || (token?.isCancelled ?? false))
@@ -385,8 +385,12 @@ void _expect(int code, List<int> accepted) {
   if (accepted.contains(code)) return;
   if (code == 401 || code == 403)
     throw const EchoFailure('authentication', 'WebDAV 访问被拒绝');
-  if (code == 507) throw const EchoFailure('capacity', 'WebDAV 存储空间不足');
-  throw const EchoFailure('protocol', 'WebDAV 请求失败');
+  if (code == 507) throw const EchoFailure('unavailable', 'WebDAV 存储空间不足');
+  if (code == 404 || code >= 500)
+    throw const EchoFailure('unavailable', 'WebDAV 请求失败');
+  if (code == 409 || code == 412)
+    throw const EchoFailure('conflict', 'WebDAV 请求失败');
+  throw const EchoFailure('incompatible', 'WebDAV 请求失败');
 }
 
 bool _same(List<int> a, List<int> b) =>

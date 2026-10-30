@@ -17,6 +17,8 @@ const ledger = FakeDavServer.ledger;
 const batch = '22222222222222222222222222222222';
 const credentials = DavCredentials('fictional', 'never-log-me');
 final failure = isA<EchoFailure>();
+Matcher failureCode(String code) =>
+    isA<EchoFailure>().having((e) => e.code, 'code', code);
 Future<StoredObject> object([List<int> data = const [1, 2, 3]]) async {
   final bytes = Uint8List.fromList(data);
   final digest = (await Sha256().hash(
@@ -93,7 +95,7 @@ void main() {
     final a = await object();
     await dav.put(a);
     fake.files['${fake.scope}objects/$batch-${a.sha256}.bin'] = [9];
-    await expectLater(dav.put(a), throwsA(failure));
+    await expectLater(dav.put(a), throwsA(failureCode('integrity')));
     expect(fake.successfulObjectWrites, 1);
   });
   test(
@@ -127,12 +129,67 @@ void main() {
       expect(fake.files, isEmpty);
     },
   );
-  for (final status in [401, 403, 507, 302, 307]) {
-    test('HTTP $status fails safely without retries or redirect', () async {
-      fake.forcedStatus = status;
-      await expectLater(dav.readMetadata(), throwsA(failure));
-      expect(fake.requests, hasLength(1));
-    });
+  for (final status in [401, 403, 507, 302, 307, 404, 409, 500]) {
+    test(
+      'HTTP $status contract code and bounded retry without redirect',
+      () async {
+        fake.forcedStatus = status;
+        final code = switch (status) {
+          401 || 403 => 'authentication',
+          507 || 404 || 500 => 'unavailable',
+          409 => 'conflict',
+          _ => 'incompatible',
+        };
+        await expectLater(dav.readMetadata(), throwsA(failureCode(code)));
+        expect(fake.requests, hasLength(status == 500 ? 3 : 1));
+      },
+    );
+  }
+  for (final status in [401, 507, 404, 409, 302, 500]) {
+    test(
+      'HTTP $status codes propagate through probe read put publish',
+      () async {
+        fake.forcedStatus = status;
+        final code = switch (status) {
+          401 => 'authentication',
+          507 || 404 || 500 => 'unavailable',
+          409 => 'conflict',
+          _ => 'incompatible',
+        };
+        final a = await object();
+        final ref = ObjectRef(
+          batch,
+          a.sha256,
+          'objects/$batch-${a.sha256}.bin',
+        );
+        final metadata = (await createLedgerBundle(ledger)).metadata;
+        await expectLater(
+          WebDavTransport.probeMetadata(
+            dav.ledgerRoot,
+            credentials,
+            clientFactory: fake.client,
+          ),
+          throwsA(failureCode(code)),
+        );
+        await expectLater(dav.read(ref), throwsA(failureCode(code)));
+        await expectLater(dav.put(a), throwsA(failureCode(code)));
+        final publisher = WebDavTransport(
+          root: fake.root,
+          ledgerId: ledger,
+          credentials: credentials,
+          clientFactory: fake.client,
+        );
+        try {
+          await expectLater(
+            publisher.publishMetadata(metadata),
+            throwsA(failureCode(code)),
+          );
+        } finally {
+          await publisher.close();
+        }
+        expect(fake.requests, hasLength(status == 500 ? 12 : 4));
+      },
+    );
   }
   test('untrusted TLS certificate rejected', () async {
     final untrusted = WebDavTransport(
@@ -143,15 +200,50 @@ void main() {
     try {
       await expectLater(
         untrusted.readMetadata(),
-        throwsA(
-          isA<EchoFailure>().having((e) => e.code, 'code', 'certificate'),
-        ),
+        throwsA(failureCode('authentication')),
       );
       expect(fake.requests, isEmpty);
     } finally {
       await untrusted.close();
     }
   });
+  test(
+    'TLS authentication code propagates through probe read put publish without retry',
+    () async {
+      final retries = <int>[];
+      final untrusted = WebDavTransport(
+        root: fake.root,
+        ledgerId: ledger,
+        credentials: credentials,
+        onRetry: retries.add,
+      );
+      final a = await object();
+      final ref = ObjectRef(batch, a.sha256, 'objects/$batch-${a.sha256}.bin');
+      final metadata = (await createLedgerBundle(ledger)).metadata;
+      try {
+        await expectLater(
+          WebDavTransport.probeMetadata(dav.ledgerRoot, credentials),
+          throwsA(failureCode('authentication')),
+        );
+        await expectLater(
+          untrusted.read(ref),
+          throwsA(failureCode('authentication')),
+        );
+        await expectLater(
+          untrusted.put(a),
+          throwsA(failureCode('authentication')),
+        );
+        await expectLater(
+          untrusted.publishMetadata(metadata),
+          throwsA(failureCode('authentication')),
+        );
+        expect(retries, isEmpty);
+        expect(fake.requests, isEmpty);
+      } finally {
+        await untrusted.close();
+      }
+    },
+  );
   for (final href in [
     'https://elsewhere.invalid/no',
     '/outside.bin',
