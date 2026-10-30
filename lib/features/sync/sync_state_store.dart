@@ -94,6 +94,28 @@ class SyncStateStore {
     });
   }
 
+  /// Change only the matching endpoint's enabled flag. Selection is checked
+  /// inside the transaction, including after the asynchronous write, so a
+  /// superseded operation rolls back rather than touching another ledger.
+  Future<void> setEnabled(
+    SyncChannelKind kind,
+    String endpoint,
+    bool enabled, {
+    required void Function() validateSelection,
+  }) => database.transaction(() async {
+    validateSelection();
+    final changed =
+        await (database.update(database.syncChannelConfigs)..where(
+              (r) =>
+                  r.ledgerId.equals(ledgerId) &
+                  r.channel.equals(kind.name) &
+                  r.endpointId.equals(endpoint),
+            ))
+            .write(SyncChannelConfigsCompanion(enabled: Value(enabled)));
+    validateSelection();
+    if (changed != 1) throw const EchoFailure('conflict', '通道配置已变化，请重新打开设置');
+  });
+
   /// A success write updates only the timestamp field of the *current* matching
   /// endpoint under the SQLite transaction. It cannot restore an old enabled
   /// flag, settings payload, or endpoint after the user changes configuration.

@@ -108,15 +108,22 @@ class SyncRuntime {
   }
 
   Future<void> setEnabled(ChannelConfig config, bool enabled) async {
+    final id = repository.store.ledgerId;
+    final target = SyncStateStore(repository.database, id);
     final current = await configs();
+    _selected(id);
     if (!current.any(
       (c) => c.kind == config.kind && c.endpointId == config.endpointId,
     )) {
       throw const EchoFailure('conflict', '通道配置已变化，请重新打开设置');
     }
-    await SyncStateStore(repository.database, repository.store.ledgerId).save(
-      ChannelConfig(config.kind, config.endpointId, enabled, config.settings),
+    await target.setEnabled(
+      config.kind,
+      config.endpointId,
+      enabled,
+      validateSelection: () => _selected(id),
     );
+    _selected(id);
     await rebind();
   }
 

@@ -229,6 +229,7 @@ class AppServices extends ChangeNotifier {
     if (_switching) throw const EchoFailure('unavailable', '正在切换账本');
     _switching = true;
     final previous = ledger.currentLedgerId;
+    var resumeAfterRollback = false;
     ++_generation;
     ++_read;
     try {
@@ -241,19 +242,44 @@ class AppServices extends ChangeNotifier {
       );
       _writeLocked = false;
       await reload();
-    } on Object {
+    } on Object catch (switchError) {
+      var restored = false;
       try {
         if (previous != null) await ledger.selectLedger(previous);
         await reload();
+        if (snapshot == null ||
+            snapshot!.metadata.id != previous ||
+            error != null) {
+          throw const EchoFailure('locked', '原账本暂不可用');
+        }
+        _writeLocked = false;
+        restored = true;
       } on Object {
         _writeLocked = true;
         snapshot = null;
         error = '账本切换未完成，已停止写入。原有数据与密钥已保留。';
         _changed();
       }
+      if (restored) {
+        try {
+          await rebindSync?.call();
+          resumeAfterRollback = syncCoordinator != null;
+        } on Object {
+          // A secondary rebind failure must not replace the selection failure.
+          // Keep the restored local ledger writable and the partial runtime shut.
+          try {
+            await detachSync();
+          } on Object {
+            /* Preserve the original switch failure. */
+          }
+        }
+        error = safeError(switchError);
+        _changed();
+      }
       rethrow;
     } finally {
       _switching = false;
+      if (resumeAfterRollback) unawaited(syncNow());
     }
     await rebindSync?.call();
   }

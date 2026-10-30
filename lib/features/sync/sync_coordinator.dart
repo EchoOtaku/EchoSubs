@@ -196,6 +196,43 @@ class SyncCoordinator {
       );
       _emit(SyncStatus(report: report));
       return report;
+    } on Object catch (error, stack) {
+      const codes = {
+        'validation',
+        'locked',
+        'incompatible',
+        'authentication',
+        'integrity',
+        'conflict',
+        'unavailable',
+        'cancelled',
+      };
+      final failure = error is EchoFailure && codes.contains(error.code)
+          ? error
+          : const EchoFailure('unavailable', '同步状态读取或保存失败，请重试');
+      ChannelReport failed(ChannelReport previous) => ChannelReport(
+        enabled: previous.enabled,
+        uploaded: previous.uploaded,
+        downloaded: previous.downloaded,
+        pendingUpload: previous.pendingUpload,
+        pendingDependencies: previous.pendingDependencies,
+        conflicts: previous.conflicts,
+        quarantined: previous.quarantined,
+        errors: [...previous.errors, failure.safeMessage],
+        errorCodes: [...previous.errorCodes, failure.code],
+        lastSuccess: previous.lastSuccess,
+      );
+      _emit(
+        SyncStatus(
+          report: SyncReport(
+            failed(status.report.webdav),
+            failed(status.report.lan),
+          ),
+          failure: failure.safeMessage,
+          failureCode: failure.code,
+        ),
+      );
+      Error.throwWithStackTrace(failure, stack);
     } finally {
       timer.cancel();
     }

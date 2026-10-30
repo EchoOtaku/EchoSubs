@@ -44,10 +44,13 @@ class SyncStatus {
     this.report = const SyncReport(ChannelReport(), ChannelReport()),
     this.remindersReconciled = false,
     this.retryMessage,
+    this.failure,
+    this.failureCode,
   });
   final bool running;
   final SyncReport report;
   // Task9 explicitly updates this after its independent reconciliation succeeds.
   final bool remindersReconciled;
   final String? retryMessage;
+  final String? failure, failureCode;
 }

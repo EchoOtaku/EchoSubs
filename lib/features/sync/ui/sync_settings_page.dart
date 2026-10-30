@@ -73,6 +73,11 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
             const SizedBox(height: 12),
             if (services.syncStatus.retryMessage != null)
               Text(services.syncStatus.retryMessage!),
+            if (services.syncStatus.failure != null)
+              Text(
+                services.syncStatus.failure!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             Text(
               services.syncStatus.remindersReconciled
                   ? '提醒已核对'

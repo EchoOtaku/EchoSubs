@@ -11,6 +11,7 @@ import 'package:echo_subs/features/sync/ui/pairing_page.dart';
 import 'package:echo_subs/features/sync/ui/conflicts_page.dart';
 import 'package:echo_subs/features/sync/sync_coordinator.dart';
 import 'package:echo_subs/features/sync/sync_status.dart';
+import 'package:echo_subs/features/sync/sync_state_store.dart';
 import 'package:echo_subs/features/sync/sync_engine.dart';
 import 'package:echo_subs/core/crypto/envelope_codec.dart';
 import 'package:echo_subs/storage/ledger_store.dart';
@@ -19,6 +20,71 @@ import '../sync/sync_fixture.dart' as f;
 import '../support/ledger_harness.dart';
 
 void main() {
+  testWidgets(
+    'one global configuration read failure leaves retry button usable',
+    (tester) async {
+      final h = (await tester.runAsync(LedgerHarness.create))!;
+      addTearDown(h.close);
+      final services = (await tester.runAsync(() async {
+        final s = AppServices(ledger: h.repo);
+        await s.ready;
+        return s;
+      }))!;
+      addTearDown(services.dispose);
+      late String originalBody;
+      await tester.runAsync(() async {
+        await SyncStateStore(h.db, h.repo.currentLedgerId!).save(
+          ChannelConfig(SyncChannelKind.webdav, 'broken-read', true, {
+            'root': 'https://fictional.example/app/',
+          }),
+        );
+        originalBody =
+            (await h.db.select(h.db.syncChannelConfigs).getSingle()).body;
+        await h.db.customStatement('UPDATE sync_channel_configs SET body = ?', [
+          'invalid-json',
+        ]);
+        final cloud = MemoryChannel(await h.repo.store.metadata());
+        final coordinator = SyncCoordinator(
+          store: h.repo.store,
+          authenticate: h.repo.authenticatedKeys,
+          channels: [
+            SyncChannel(
+              SyncChannelKind.webdav,
+              'broken-read',
+              () async => cloud,
+            ),
+          ],
+        );
+        services.attachSync(coordinator);
+        await expectLater(
+          coordinator.sync(token: Token()),
+          throwsA(isA<Exception>()),
+        );
+        await Future<void>.delayed(Duration.zero);
+      });
+      await tester.runAsync(
+        () => tester.pumpWidget(
+          MaterialApp(home: SyncSettingsPage(services: services)),
+        ),
+      );
+      expect(services.syncStatus.running, false);
+      expect(services.syncStatus.failureCode, 'unavailable');
+      expect(find.text('数据同步完成'), findsNothing);
+      final retry = find.widgetWithText(FilledButton, '立即同步 / 重试');
+      expect(tester.widget<FilledButton>(retry).onPressed, isNotNull);
+      await tester.runAsync(
+        () => h.db.customStatement('UPDATE sync_channel_configs SET body = ?', [
+          originalBody,
+        ]),
+      );
+      final callback = tester.widget<FilledButton>(retry).onPressed!;
+      await tester.runAsync(() => (callback as Future<void> Function())());
+      await tester.pump();
+      expect(services.syncStatus.report.webdav.succeeded, true);
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(services.detachSync);
+    },
+  );
   for (final pairing in [false, true]) {
     testWidgets(
       '${pairing ? 'pairing' : 'recovery'} controls stay reachable at 1.5 scale with keyboard',

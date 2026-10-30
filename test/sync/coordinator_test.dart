@@ -28,6 +28,7 @@ class MemoryChannel implements SyncTransport {
   final objects = <String, StoredObject>{};
   bool fail = false;
   int puts = 0;
+  int closes = 0;
   Future<void> Function()? beforeList;
   String key(StoredObject object) => '${object.batchId}:${object.sha256}';
   @override
@@ -64,7 +65,9 @@ class MemoryChannel implements SyncTransport {
   }
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    closes++;
+  }
 }
 
 void main() {
@@ -447,6 +450,33 @@ void main() {
       await next.close();
     }
   });
+  test(
+    'global success write failure clears running and preserves successful retry',
+    () async {
+      await configureCloud();
+      final earlier = (await coordinator.sync(
+        token: Token(),
+      )).webdav.lastSuccess;
+      await local.db.customStatement(
+        'CREATE TRIGGER fail_sync_success BEFORE UPDATE OF body ON sync_channel_configs BEGIN SELECT RAISE(FAIL, \'injected\'); END',
+      );
+      try {
+        await expectLater(
+          coordinator.sync(token: Token()),
+          throwsA(isA<Exception>()),
+        );
+        expect(coordinator.status.running, false);
+        expect(coordinator.status.failureCode, 'unavailable');
+        expect(coordinator.status.report.webdav.succeeded, false);
+        expect(coordinator.status.report.webdav.lastSuccess, earlier);
+        expect(cloud.closes, 2);
+      } finally {
+        await local.db.customStatement('DROP TRIGGER fail_sync_success');
+      }
+      expect((await coordinator.sync(token: Token())).webdav.succeeded, true);
+      expect(cloud.closes, 3);
+    },
+  );
   test(
     'authenticated pending dependencies differ from transport outbox',
     () async {
