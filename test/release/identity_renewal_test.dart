@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_subs/app/services.dart';
 import 'package:echo_subs/core/crypto/key_vault.dart';
+import 'package:echo_subs/core/crypto/ledger_metadata.dart';
 import 'package:echo_subs/core/model/errors.dart';
 import 'package:echo_subs/core/model/ids.dart';
 import 'package:echo_subs/core/model/subscription.dart';
+import 'package:echo_subs/core/model/ledger.dart';
 import 'package:echo_subs/features/backup/backup_service.dart';
 import 'package:echo_subs/features/sync/sync_state_store.dart';
 import 'package:echo_subs/features/sync/sync_status.dart';
@@ -45,6 +47,89 @@ Future<void> expire(LanFixture f) async {
 }
 
 void main() {
+  test(
+    'I6 device identity renewal invalidates both ledgers inbound and outbound authorizations after Vault reopen',
+    () async {
+      HttpOverrides.global = null;
+      final f = await LanFixture.create();
+      final repo = LedgerRepository(f.data.db, f.hostVault, id(2));
+      await f.hostVault.put(
+        LedgerRepository.rootKeyName(id(1)),
+        f.data.bundle.keys.rootKey,
+      );
+      await repo.selectLedger(id(1));
+      final runtime = SyncRuntime(
+        repo,
+        attach: (_) {},
+        detach: () async {},
+        select: (_) async {},
+      );
+      try {
+        await f.guestPairing.join(await f.offer());
+        final firstPeer = (await f.hosts.list(id(1))).single;
+        final second = newId();
+        final bundle = await createLedgerBundle(second);
+        await repo.create(LedgerConfig(second, 'Asia/Shanghai'), bundle);
+        final secondPeer = PairedPeer(
+          pairingId: newId(),
+          ledgerId: second,
+          localDeviceId: id(2),
+          localFingerprint: f.host.certificate.fingerprint,
+          certificate: f.guest.certificate,
+          address: '127.0.0.1',
+          port: f.server.port,
+          credentialRef: 'lan.peer.$second.${id(3)}.secret',
+        );
+        await f.hosts.save(
+          secondPeer,
+          inboundToken: Uint8List.fromList(List.filled(32, 7)),
+          outboundToken: Uint8List.fromList(List.filled(32, 8)),
+          stillValid: () => true,
+        );
+        final secondHistory = (await repo.snapshot()).batches;
+        await repo.selectLedger(id(1));
+        final firstHistory = (await repo.snapshot()).batches;
+        for (final peer in [firstPeer, secondPeer]) {
+          expect(await f.hosts.token(peer, inbound: true), hasLength(32));
+          expect(await f.hosts.token(peer, inbound: false), hasLength(32));
+        }
+        await runtime.renewLanIdentity(
+          confirmed: true,
+          expectedLedgerId: id(1),
+        );
+        final vault = KeyVault(storage: f.hostStorage);
+        final peers = LanPeerStore(vault);
+        for (final peer in [firstPeer, secondPeer]) {
+          expect(
+            await peers.get(peer.ledgerId, peer.certificate.deviceId),
+            isNull,
+          );
+          expect(await peers.list(peer.ledgerId), isEmpty);
+          for (final inbound in [true, false]) {
+            await expectLater(
+              peers.token(peer, inbound: inbound),
+              throwsA(isA<EchoFailure>()),
+            );
+          }
+        }
+        expect(repo.currentLedgerId, id(1));
+        expect((await repo.snapshot()).batches, firstHistory);
+        await repo.selectLedger(second);
+        expect((await repo.snapshot()).batches, secondHistory);
+        expect(
+          await vault.get(LedgerRepository.rootKeyName(id(1))),
+          f.data.bundle.keys.rootKey,
+        );
+        expect(
+          await vault.get(LedgerRepository.rootKeyName(second)),
+          bundle.keys.rootKey,
+        );
+      } finally {
+        await runtime.close();
+        await f.close();
+      }
+    },
+  );
   test(
     'I6 corrupt LAN identity does not block local bootstrap edit or backup',
     () async {
