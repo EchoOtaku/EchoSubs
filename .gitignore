@@ -20,3 +20,27 @@ exports/
 .env
 .env.*
 android/key.properties
+
+# Flutter generated files and local platform configuration
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+/coverage/
+*.iml
+.idea/
+.vscode/
+android/.gradle/
+android/captures/
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+windows/flutter/ephemeral/
+*.p12
+*.pfx
+secrets/
+credentials/
