@@ -113,6 +113,133 @@ void main() {
     await f.init();
   });
   tearDown(() => f.dispose());
+  for (final crossLedger in [false, true]) {
+    test(
+      'reject unbound 32-byte root crossLedger=$crossLedger for selection and writes',
+      () async {
+        final other = await createLedgerBundle(newId());
+        await f.repo.create(LedgerConfig(other.metadata.id, 'UTC'), other);
+        final originalObjects = await f.repo.store.objects();
+        await f.repo.selectLedger(f.id);
+        final original = await f.repo.snapshot();
+        final objects = await f.repo.store.objects();
+        final recovery = await f.vault.get(
+          LedgerRepository.recoveryKeyName(f.id),
+        );
+        final wrong = crossLedger
+            ? other.keys.rootKey
+            : (Uint8List.fromList(f.bundle.keys.rootKey)..[0] ^= 1);
+        await f.vault.put(LedgerRepository.rootKeyName(f.id), wrong);
+        final writes = f.backend.writes;
+        final selector = LedgerRepository(f.db, f.vault, newId());
+        await selector.selectLedger(other.metadata.id);
+        final locked = isA<EchoFailure>().having(
+          (e) => e.code,
+          'code',
+          'locked',
+        );
+        await expectLater(selector.selectLedger(f.id), throwsA(locked));
+        expect(selector.currentLedgerId, other.metadata.id);
+        await expectLater(
+          f.repo.commit([
+            Mutation(EntityRef(EntityKind.category, newId()), [], null),
+          ]),
+          throwsA(locked),
+        );
+        await expectLater(
+          f.repo.renew(f.subscription(endMonth: 2), f.payment()),
+          throwsA(locked),
+        );
+        expect(f.repo.currentLedgerId, f.id);
+        expect((await f.repo.snapshot()).projection, original.projection);
+        expect((await f.repo.snapshot()).batches, original.batches);
+        expect(f.backend.writes, writes);
+        expect(await f.vault.get(LedgerRepository.rootKeyName(f.id)), wrong);
+        expect(
+          await f.vault.get(LedgerRepository.recoveryKeyName(f.id)),
+          recovery,
+        );
+        final unchanged = await f.repo.store.objects();
+        expect(unchanged.map((o) => o.bytes), objects.map((o) => o.bytes));
+        expect(
+          (await selector.store.objects()).map((o) => o.bytes),
+          originalObjects.map((o) => o.bytes),
+        );
+      },
+    );
+  }
+  test(
+    'existing root needs a proof object but not a stored recovery code',
+    () async {
+      f.backend.values.remove(
+        'echosubs.v1.${LedgerRepository.recoveryKeyName(f.id)}',
+      );
+      final selector = LedgerRepository(f.db, f.vault, newId());
+      await selector.selectLedger(f.id);
+      expect(selector.currentLedgerId, f.id);
+      await f.db.customStatement(
+        'DELETE FROM cipher_objects WHERE ledger_id = ?',
+        [f.id],
+      );
+      final locked = isA<EchoFailure>().having((e) => e.code, 'code', 'locked');
+      await expectLater(selector.selectLedger(f.id), throwsA(locked));
+      await expectLater(
+        selector.commit([
+          Mutation(EntityRef(EntityKind.category, newId()), [], null),
+        ]),
+        throwsA(locked),
+      );
+      expect((await selector.snapshot()).batches.length, 2);
+    },
+  );
+  for (final mismatch in ['metadata', 'record', 'digest', 'missingRecord']) {
+    test(
+      'root proof rejects mismatched $mismatch without repairing storage',
+      () async {
+        final metadata = await f.repo.store.metadata();
+        final object = (await f.repo.store.objects()).first;
+        final root = await f.vault.get(LedgerRepository.rootKeyName(f.id));
+        final writes = f.backend.writes;
+        if (mismatch == 'metadata') {
+          final other = await createLedgerBundle(newId());
+          await f.db.customStatement(
+            'UPDATE ledger_records SET metadata = ? WHERE ledger_id = ?',
+            [other.metadata.encode(), f.id],
+          );
+        } else if (mismatch == 'record') {
+          final batch = (await f.repo.snapshot()).batches.singleWhere(
+            (b) => b.id == object.batchId,
+          );
+          final modified = batch.toJson()..['deviceId'] = newId();
+          await f.db.customStatement(
+            'UPDATE change_batches SET body = ? WHERE ledger_id = ? AND batch_id = ?',
+            [jsonEncode(modified), f.id, object.batchId],
+          );
+        } else if (mismatch == 'digest') {
+          await f.db.customStatement(
+            'UPDATE cipher_objects SET sha256 = ? WHERE ledger_id = ? AND batch_id = ?',
+            ['0' * 64, f.id, object.batchId],
+          );
+        } else {
+          await f.db.customStatement(
+            'DELETE FROM change_batches WHERE ledger_id = ? AND batch_id = ?',
+            [f.id, object.batchId],
+          );
+        }
+        final selector = LedgerRepository(f.db, f.vault, newId());
+        await expectLater(
+          selector.selectLedger(f.id),
+          throwsA(isA<EchoFailure>().having((e) => e.code, 'code', 'locked')),
+        );
+        expect(selector.currentLedgerId, isNull);
+        expect(await f.vault.get(LedgerRepository.rootKeyName(f.id)), root);
+        expect(f.backend.writes, writes);
+        expect((await f.repo.store.objects()).first.bytes, object.bytes);
+        if (mismatch != 'metadata')
+          expect((await f.repo.store.metadata()).encode(), metadata.encode());
+      },
+    );
+  }
   test(
     'two database connections reserve creation before touching shared vault',
     () async {

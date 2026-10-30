@@ -48,11 +48,37 @@ class LedgerRepository {
     final bytes = await vault.get(rootKeyName(id));
     if (bytes == null || bytes.length != 32)
       throw const EchoFailure('locked', '账本密钥不可用');
-    return LedgerKeys(id, bytes);
+    final keys = LedgerKeys(id, bytes);
+    final bound = LedgerStore(database, id);
+    try {
+      await database.transaction(() async {
+        final metadata = await bound.metadata();
+        final proof = await bound.keyProof();
+        if (metadata.id != id ||
+            proof == null ||
+            proof.object.ledgerId != id ||
+            proof.batch.ledgerId != id ||
+            proof.batch.id != proof.object.batchId) {
+          throw const EchoFailure('locked', '无法验证账本密钥');
+        }
+        final decoded = await EnvelopeCodec().open(proof.object.bytes, keys);
+        final digest = await StoredObject.fromBytes(
+          decoded,
+          proof.object.bytes,
+        );
+        if (decoded != proof.batch ||
+            decoded.id != proof.object.batchId ||
+            digest.sha256 != proof.object.sha256) {
+          throw const EchoFailure('locked', '无法验证账本密钥');
+        }
+      });
+    } on Object {
+      throw const EchoFailure('locked', '无法验证账本密钥');
+    }
+    return keys;
   }
 
   Future<void> selectLedger(LedgerId id) async {
-    await LedgerStore(database, id).metadata();
     await _keys(id);
     _current = id;
   }

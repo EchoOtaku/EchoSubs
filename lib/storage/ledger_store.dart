@@ -32,6 +32,13 @@ class StoredObject {
   }
 }
 
+/// One persisted ciphertext and its corresponding immutable causal record.
+class LedgerKeyProof {
+  const LedgerKeyProof(this.object, this.batch);
+  final StoredObject object;
+  final ChangeBatch batch;
+}
+
 class LedgerSnapshot {
   LedgerSnapshot(
     this.metadata,
@@ -95,6 +102,28 @@ class LedgerStore {
             .get())
       StoredObject(r.batchId, r.ledgerId, r.sha256, r.bytes),
   ]);
+
+  /// Reads at most one blob; absence cannot establish ownership of a root key.
+  Future<LedgerKeyProof?> keyProof() => database.transaction(() async {
+    final row =
+        await (database.select(database.cipherObjects)
+              ..where((r) => r.ledgerId.equals(ledgerId))
+              ..orderBy([(r) => OrderingTerm.asc(r.batchId)])
+              ..limit(1))
+            .getSingleOrNull();
+    if (row == null) return null;
+    final record =
+        await (database.select(database.changeBatches)..where(
+              (r) =>
+                  r.ledgerId.equals(ledgerId) & r.batchId.equals(row.batchId),
+            ))
+            .getSingleOrNull();
+    if (record == null) throw const EchoFailure('integrity', '账本证明记录缺失');
+    return LedgerKeyProof(
+      StoredObject(row.batchId, row.ledgerId, row.sha256, row.bytes),
+      ChangeBatch.fromJson(jsonDecode(record.body) as Map<String, dynamic>),
+    );
+  });
   Future<LedgerSnapshot> snapshot() => database.transaction(() async {
     final meta = await metadata();
     final rows =
