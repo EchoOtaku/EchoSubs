@@ -292,6 +292,7 @@ class SyncRuntime {
                       peers: peers,
                     );
                   },
+                  configEndpointId: lan.endpointId,
                 ),
               );
             }
@@ -306,6 +307,14 @@ class SyncRuntime {
         return current;
       },
     );
+    await coordinator.restoreStatus();
+    if (_closed ||
+        !_foreground ||
+        generation != _generation ||
+        repository.currentLedgerId != id) {
+      await coordinator.close();
+      return;
+    }
     attach(coordinator);
   }
 

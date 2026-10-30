@@ -93,6 +93,177 @@ void main() {
     await second.close();
     await third.close();
   });
+  Future<void> configureCloud({
+    String endpoint = 'cloud',
+    bool enabled = true,
+  }) => SyncStateStore(local.db, id(1)).save(
+    ChannelConfig(SyncChannelKind.webdav, endpoint, enabled, {
+      'root': 'https://fictional.example/dedicated/',
+    }),
+  );
+  SyncCoordinator reopened({
+    String endpoint = 'cloud',
+    bool waiting = false,
+  }) => SyncCoordinator(
+    store: local.store,
+    authenticate: () async => local.bundle.keys,
+    channels: waiting
+        ? []
+        : [SyncChannel(SyncChannelKind.webdav, endpoint, () async => cloud)],
+  );
+  test(
+    'success timestamp survives coordinator reconstruction and failed retry',
+    () async {
+      await configureCloud();
+      final first = (await coordinator.sync(token: Token())).webdav.lastSuccess;
+      expect(first, isNotNull);
+      await coordinator.close();
+      coordinator = reopened();
+      await coordinator.restoreStatus();
+      expect(coordinator.status.report.webdav.lastSuccess, first);
+      expect(coordinator.status.report.webdav.succeeded, false);
+      cloud.fail = true;
+      final failed = await coordinator.sync(token: Token());
+      expect(failed.webdav.succeeded, false);
+      expect(failed.webdav.lastSuccess, first);
+    },
+  );
+  test(
+    'success timestamp is not inherited by a replacement endpoint',
+    () async {
+      await configureCloud();
+      await coordinator.sync(token: Token());
+      await configureCloud(endpoint: 'replacement');
+      await coordinator.close();
+      coordinator = reopened(endpoint: 'replacement');
+      cloud.fail = true;
+      expect(
+        (await coordinator.sync(token: Token())).webdav.lastSuccess,
+        isNull,
+      );
+    },
+  );
+  test(
+    'completion timestamp cannot re-enable a concurrent disabled channel',
+    () async {
+      await configureCloud();
+      final entered = Completer<void>(), release = Completer<void>();
+      cloud.beforeList = () async {
+        entered.complete();
+        await release.future;
+      };
+      final flight = coordinator.sync(token: Token());
+      await entered.future;
+      await configureCloud(enabled: false);
+      release.complete();
+      final completed = (await flight).webdav.lastSuccess;
+      expect(completed, isNotNull);
+      expect(
+        (await SyncStateStore(local.db, id(1)).configs()).single.enabled,
+        false,
+      );
+      await coordinator.close();
+      coordinator = reopened(waiting: true);
+      expect(
+        (await coordinator.sync(token: Token())).webdav.lastSuccess,
+        completed,
+      );
+      expect(
+        (await SyncStateStore(local.db, id(1)).configs()).single.enabled,
+        false,
+      );
+    },
+  );
+  test(
+    'late success cannot write timestamp into replacement endpoint',
+    () async {
+      await configureCloud();
+      final entered = Completer<void>(), release = Completer<void>();
+      cloud.beforeList = () async {
+        entered.complete();
+        await release.future;
+      };
+      final flight = coordinator.sync(token: Token());
+      await entered.future;
+      await configureCloud(endpoint: 'replacement');
+      release.complete();
+      await flight;
+      await coordinator.close();
+      coordinator = reopened(endpoint: 'replacement');
+      cloud.fail = true;
+      expect(
+        (await coordinator.sync(token: Token())).webdav.lastSuccess,
+        isNull,
+      );
+    },
+  );
+  test(
+    'cancelled empty transfer preserves the earlier success timestamp',
+    () async {
+      await configureCloud();
+      final previous = (await coordinator.sync(
+        token: Token(),
+      )).webdav.lastSuccess;
+      final entered = Completer<void>(), release = Completer<void>();
+      cloud.beforeList = () async {
+        entered.complete();
+        await release.future;
+      };
+      final token = Token();
+      final flight = coordinator.sync(token: token);
+      await entered.future;
+      token.isCancelled = true;
+      release.complete();
+      expect((await flight).webdav.lastSuccess, previous);
+      expect(coordinator.status.report.webdav.cancelled, true);
+    },
+  );
+  test(
+    'LAN success is persisted per pairing endpoint and retained while waiting',
+    () async {
+      final state = SyncStateStore(local.db, id(1));
+      await state.save(
+        ChannelConfig(SyncChannelKind.lan, 'lan-config', true, {
+          'address': '192.168.1.10',
+          'port': 43177,
+        }),
+      );
+      await coordinator.close();
+      coordinator = SyncCoordinator(
+        store: local.store,
+        authenticate: () async => local.bundle.keys,
+        channels: [
+          SyncChannel(
+            SyncChannelKind.lan,
+            'lan-config.pair-a',
+            () async => lan,
+            configEndpointId: 'lan-config',
+          ),
+        ],
+      );
+      final previous = (await coordinator.sync(token: Token())).lan.lastSuccess;
+      await coordinator.close();
+      coordinator = reopened(waiting: true);
+      await coordinator.restoreStatus();
+      expect(coordinator.status.report.lan.lastSuccess, previous);
+      expect(coordinator.status.report.lan.succeeded, false);
+      await coordinator.close();
+      coordinator = SyncCoordinator(
+        store: local.store,
+        authenticate: () async => local.bundle.keys,
+        channels: [
+          SyncChannel(
+            SyncChannelKind.lan,
+            'lan-config.pair-b',
+            () async => lan,
+            configEndpointId: 'lan-config',
+          ),
+        ],
+      );
+      lan.fail = true;
+      expect((await coordinator.sync(token: Token())).lan.lastSuccess, isNull);
+    },
+  );
   test(
     'failed cloud does not prevent LAN and relays to cloud on retry',
     () async {

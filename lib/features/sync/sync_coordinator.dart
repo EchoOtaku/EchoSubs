@@ -8,9 +8,15 @@ import 'sync_state_store.dart';
 import 'transports/sync_transport.dart';
 
 class SyncChannel {
-  const SyncChannel(this.kind, this.endpointId, this.open);
+  const SyncChannel(
+    this.kind,
+    this.endpointId,
+    this.open, {
+    String? configEndpointId,
+  }) : configEndpointId = configEndpointId ?? endpointId;
   final SyncChannelKind kind;
   final String endpointId;
+  final String configEndpointId;
   final Future<SyncTransport> Function() open;
 }
 
@@ -41,6 +47,49 @@ class SyncCoordinator {
   bool _closed = false;
   SyncStatus status = const SyncStatus();
   Stream<SyncStatus> watchStatus() => _events.stream;
+  String _identity(SyncChannel channel) =>
+      '${channel.kind.name}:${channel.configEndpointId}:${channel.endpointId}';
+  Future<SyncReport> _history(List<SyncChannel> active) async {
+    final configs = await SyncStateStore(
+      store.database,
+      store.ledgerId,
+    ).configs();
+    final values = <SyncChannelKind, List<ChannelReport>>{};
+    for (final channel in active) {
+      final config = configs
+          .where(
+            (c) =>
+                c.kind == channel.kind &&
+                c.endpointId == channel.configEndpointId,
+          )
+          .firstOrNull;
+      if (config != null) {
+        final time = config.successes[channel.endpointId];
+        if (time != null) _lastSuccess[_identity(channel)] = time;
+      }
+      (values[channel.kind] ??= []).add(
+        ChannelReport(lastSuccess: _lastSuccess[_identity(channel)]),
+      );
+    }
+    ChannelReport report(SyncChannelKind kind) {
+      final reports = values[kind];
+      final time = reports == null
+          ? configs.where((c) => c.kind == kind).firstOrNull?.lastSuccess
+          : _combine(reports).lastSuccess;
+      return ChannelReport(lastSuccess: time);
+    }
+
+    return SyncReport(
+      report(SyncChannelKind.webdav),
+      report(SyncChannelKind.lan),
+    );
+  }
+
+  Future<void> restoreStatus() async {
+    final active = await loadChannels?.call() ?? channels;
+    _emit(SyncStatus(report: await _history(active)));
+  }
+
   void retry(SyncChannelKind kind, int attempt) => _emit(
     SyncStatus(
       running: true,
@@ -83,7 +132,10 @@ class SyncCoordinator {
       }
     });
     try {
-      for (final channel in await loadChannels?.call() ?? channels) {
+      final active = await loadChannels?.call() ?? channels;
+      final history = await _history(active);
+      _emit(SyncStatus(running: true, report: history));
+      for (final channel in active) {
         final result = await _channel(channel, token);
         results[channel] = result;
       }
@@ -92,17 +144,29 @@ class SyncCoordinator {
       final finalized = <SyncChannelKind, List<ChannelReport>>{};
       for (final entry in results.entries) {
         final channel = entry.key, result = entry.value;
+        final cancelled = _closed || token.isCancelled;
         final known = _known[channel.endpointId] ?? {};
         final pending = archive.keys
             .where((key) => !known.contains(key))
             .length;
         final complete =
+            !_closed &&
+            !token.isCancelled &&
             result.errors.isEmpty &&
             pending == 0 &&
             state.projection.pendingBatchIds.isEmpty &&
             state.projection.conflicts.isEmpty &&
             state.quarantinedBatchIds.isEmpty;
-        if (complete) _lastSuccess[channel.endpointId] = DateTime.now().toUtc();
+        if (complete) {
+          final now = DateTime.now().toUtc();
+          await SyncStateStore(store.database, store.ledgerId).recordSuccess(
+            channel.kind,
+            channel.configEndpointId,
+            channel.endpointId,
+            now,
+          );
+          _lastSuccess[_identity(channel)] = now;
+        }
         (finalized[channel.kind] ??= []).add(
           ChannelReport(
             enabled: true,
@@ -112,15 +176,23 @@ class SyncCoordinator {
             pendingDependencies: state.projection.pendingBatchIds.length,
             conflicts: state.projection.conflicts.length,
             quarantined: state.quarantinedBatchIds.length,
-            errors: result.errors,
-            errorCodes: result.errorCodes,
-            lastSuccess: _lastSuccess[channel.endpointId],
+            errors: cancelled && !result.cancelled
+                ? [...result.errors, '同步已取消']
+                : result.errors,
+            errorCodes: cancelled && !result.cancelled
+                ? [...result.errorCodes, 'cancelled']
+                : result.errorCodes,
+            lastSuccess: _lastSuccess[_identity(channel)],
           ),
         );
       }
       final report = SyncReport(
-        _combine(finalized[SyncChannelKind.webdav]),
-        _combine(finalized[SyncChannelKind.lan]),
+        finalized.containsKey(SyncChannelKind.webdav)
+            ? _combine(finalized[SyncChannelKind.webdav])
+            : history.webdav,
+        finalized.containsKey(SyncChannelKind.lan)
+            ? _combine(finalized[SyncChannelKind.lan])
+            : history.lan,
       );
       _emit(SyncStatus(report: report));
       return report;
@@ -210,7 +282,7 @@ class SyncCoordinator {
       quarantined: state.quarantinedBatchIds.length,
       errors: List.unmodifiable(errors),
       errorCodes: List.unmodifiable(errorCodes),
-      lastSuccess: _lastSuccess[channel.endpointId],
+      lastSuccess: _lastSuccess[_identity(channel)],
     );
   }
 
