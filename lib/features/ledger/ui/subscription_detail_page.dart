@@ -10,6 +10,7 @@ import '../../../core/model/subscription.dart';
 import 'subscription_editor.dart';
 import 'payments_page.dart';
 import 'widgets.dart';
+import '../../sync/ui/conflicts_page.dart';
 
 class SubscriptionDetailPage extends StatefulWidget {
   const SubscriptionDetailPage({
@@ -96,6 +97,11 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
           appBar: AppBar(title: const Text('订阅详情')),
           body: const Center(child: Text('该订阅已删除或存在未解决的冲突。')),
         );
+      final ref = EntityRef(s.kind, s.id);
+      final editable = widget.services.canEdit(ref);
+      final displayedParents = editable
+          ? widget.services.snapshot!.causal.parentsFor(ref)
+          : <BatchId>[];
       final category =
           widget.services.categories
               .where((c) => c.id == s.categoryId)
@@ -114,7 +120,7 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
             IconButton(
               key: const ValueKey('detail.edit'),
               tooltip: '编辑订阅',
-              onPressed: busy
+              onPressed: busy || !editable
                   ? null
                   : () => Navigator.push(
                       context,
@@ -131,6 +137,18 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
         ),
         body: PageContent(
           children: [
+            if (!editable) ...[
+              const Text('待确认：以下为共同确认的旧版本，日期与金额存在争议。'),
+              OutlinedButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ConflictsPage(services: widget.services),
+                  ),
+                ),
+                child: const Text('处理冲突'),
+              ),
+            ],
             SectionTitle(
               s.name,
               subtitle: [
@@ -176,7 +194,7 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
             const SizedBox(height: 20),
             FilledButton.icon(
               key: const ValueKey('detail.renew'),
-              onPressed: busy
+              onPressed: busy || !editable
                   ? null
                   : () => Navigator.push(
                       context,
@@ -195,7 +213,7 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
               children: [
                 OutlinedButton.icon(
                   key: const ValueKey('detail.archive'),
-                  onPressed: busy
+                  onPressed: busy || !editable
                       ? null
                       : () => perform(
                           () => widget.services.saveSubscription(
@@ -204,6 +222,8 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
                                   ? SubscriptionStatus.active.name
                                   : SubscriptionStatus.archived.name,
                             }),
+                            expectedLedgerId: ledgerId,
+                            baseParents: displayedParents,
                           ),
                         ),
                   icon: const Icon(Icons.archive_outlined),
@@ -213,7 +233,7 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
                 ),
                 TextButton.icon(
                   key: const ValueKey('detail.delete'),
-                  onPressed: busy ? null : () => remove(s),
+                  onPressed: busy || !editable ? null : () => remove(s),
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('删除订阅'),
                 ),
@@ -263,15 +283,22 @@ class _RenewalEditorState extends State<RenewalEditor> {
   void initState() {
     super.initState();
     _ledgerId = widget.services.ledger.currentLedgerId!;
-    _baseMatches =
-        widget.services.snapshot!.projection.entities[EntityRef(
-          widget.value.kind,
-          widget.value.id,
-        )] ==
-        widget.value;
-    _baseParents = widget.services.snapshot!.causal.parentsFor(
+    final editable = widget.services.canEdit(
       EntityRef(widget.value.kind, widget.value.id),
     );
+    _baseMatches =
+        editable &&
+        widget.services.snapshot!.projection.entities[EntityRef(
+              widget.value.kind,
+              widget.value.id,
+            )] ==
+            widget.value;
+    if (!editable) error = '此记录待确认，请返回详情处理冲突';
+    _baseParents = !editable
+        ? []
+        : widget.services.snapshot!.causal.parentsFor(
+            EntityRef(widget.value.kind, widget.value.id),
+          );
     final s = widget.value;
     final values = {
       'amount': s.price == null ? '' : decimalText(s.price!),
@@ -382,6 +409,7 @@ class _RenewalEditorState extends State<RenewalEditor> {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
+              if (!_baseMatches) const Text('此记录待确认或已更新，请返回详情处理冲突'),
               SectionTitle(
                 widget.value.name,
                 subtitle: '仅记录已发生的付款。付款日期、付费周期与赠送权益可以不同。',

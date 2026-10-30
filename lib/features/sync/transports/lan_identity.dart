@@ -105,12 +105,48 @@ class LanIdentity {
     KeyVault vault,
     DeviceId deviceId,
   ) async {
+    final raw = await vault.get('lan.identity.$deviceId.active');
+    final generation = raw == null ? null : utf8.decode(raw);
+    if (generation != null) validateId(generation);
+    return _load(
+      vault,
+      deviceId,
+      generation: generation,
+      allowCreate: generation == null,
+    );
+  }
+
+  /// Stages independent slots; a single pointer write activates a complete pair.
+  /// Only the confirmed runtime workflow may call this after revoking old peers.
+  static Future<LanIdentity> renew(KeyVault vault, DeviceId deviceId) async {
+    final generation = newId();
+    final identity = await _load(
+      vault,
+      deviceId,
+      generation: generation,
+      allowCreate: true,
+    );
+    await vault.put(
+      'lan.identity.$deviceId.active',
+      Uint8List.fromList(utf8.encode(generation)),
+    );
+    return identity;
+  }
+
+  static Future<LanIdentity> _load(
+    KeyVault vault,
+    DeviceId deviceId, {
+    String? generation,
+    required bool allowCreate,
+  }) async {
     validateId(deviceId);
-    final keyName = 'lan.identity.$deviceId.key';
-    final certName = 'lan.identity.$deviceId.cert';
+    final base =
+        'lan.identity.$deviceId${generation == null ? '' : '.$generation'}';
+    final keyName = '$base.key';
+    final certName = '$base.cert';
     var der = await vault.get(certName);
     var key = await vault.get(keyName);
-    if (der == null && key == null) {
+    if (allowCreate && der == null && key == null) {
       final pair = CryptoUtils.generateRSAKeyPair(keySize: 2048);
       final privateKey = pair.privateKey as RSAPrivateKey;
       final publicKey = pair.publicKey as RSAPublicKey;

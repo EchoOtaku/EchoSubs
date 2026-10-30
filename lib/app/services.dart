@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'startup_recovery.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -209,13 +210,25 @@ class AppServices extends ChangeNotifier {
   }
 
   void _requireWritable([LedgerId? expected]) {
-    if (_switching || _writeLocked || snapshot == null)
+    if (_disposed ||
+        _switching ||
+        _writeLocked ||
+        snapshot == null ||
+        snapshot!.metadata.id != ledger.currentLedgerId)
       throw const EchoFailure('locked', '账本暂不可写');
     if (expected != null && expected != ledger.currentLedgerId)
       throw const EchoFailure('conflict', '账本已切换，请重新打开表单');
   }
 
   bool get loading => snapshot == null && error == null;
+  bool canEdit(EntityRef ref) {
+    final state = snapshot;
+    return state != null &&
+        state.metadata.id == ledger.currentLedgerId &&
+        !state.causal.unsafeRefs.contains(ref) &&
+        !state.projection.conflicts.any((c) => c.affectedRefs.contains(ref));
+  }
+
   List<Subscription> get subscriptions =>
       snapshot?.projection.entities.values.whereType<Subscription>().toList() ??
       [];
@@ -245,7 +258,7 @@ class AppServices extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> reload() async {
+  Future<void> reload({bool propagateFailure = false}) async {
     final generation = ++_generation;
     final read = ++_read;
     try {
@@ -268,6 +281,7 @@ class AppServices extends ChangeNotifier {
     } on Object catch (e) {
       if (_disposed || generation != _generation || read != _read) return;
       error = safeError(e);
+      if (propagateFailure) rethrow;
     }
     _changed();
   }
@@ -299,6 +313,8 @@ class AppServices extends ChangeNotifier {
 
   static const activeLedgerKey = 'active.ledger';
   static const deviceIdKey = 'device.id';
+  // Retry/recovery share the same in-process peer revocation fences.
+  static KeyVault? _profileVault;
   Future<void> selectLedger(LedgerId id) async {
     if (_switching) throw const EchoFailure('unavailable', '正在切换账本');
     _switching = true;
@@ -310,22 +326,31 @@ class AppServices extends ChangeNotifier {
       await detachSync();
       await _watch?.cancel();
       await ledger.selectLedger(id);
+      // Key proof is only one object. Publish a complete target snapshot before
+      // persisting selection or permitting any writes.
+      await reload(propagateFailure: true);
+      if (_disposed || snapshot?.metadata.id != id || error != null) {
+        throw const EchoFailure('locked', '目标账本完整读取未完成，已停止切换');
+      }
       await ledger.vault.put(
         activeLedgerKey,
         Uint8List.fromList(utf8.encode(id)),
       );
       _writeLocked = false;
-      await reload();
     } on Object catch (switchError) {
       var restored = false;
       try {
         if (previous != null) await ledger.selectLedger(previous);
-        await reload();
+        await reload(propagateFailure: true);
         if (snapshot == null ||
             snapshot!.metadata.id != previous ||
             error != null) {
           throw const EchoFailure('locked', '原账本暂不可用');
         }
+        await ledger.vault.put(
+          activeLedgerKey,
+          Uint8List.fromList(utf8.encode(previous!)),
+        );
         _writeLocked = false;
         restored = true;
       } on Object {
@@ -467,9 +492,10 @@ class AppServices extends ChangeNotifier {
     KeyVault? vault,
     Future<String> Function()? timeZone,
   }) async {
+    if ((database == null) != (vault == null)) invalidModel();
     final db = database ?? await AppDatabase.openDefault();
     try {
-      final keys = vault ?? KeyVault();
+      final keys = vault ?? (_profileVault ??= KeyVault());
       final stored = await keys.get(deviceIdKey);
       final device = stored == null ? newId() : utf8.decode(stored);
       validateId(device);
@@ -501,7 +527,16 @@ class AppServices extends ChangeNotifier {
         validateId(selected);
         if (!ids.contains(selected))
           throw const EchoFailure('locked', '本地选择的账本不存在，原有数据已保留。');
-        await repository.selectLedger(selected);
+        try {
+          await repository.selectLedger(selected);
+        } on EchoFailure catch (e) {
+          // A vault backend failure is not an unlock failure capability.
+          if (e.code == 'locked' &&
+              (e.safeMessage == '账本密钥不可用' || e.safeMessage == '无法验证账本密钥')) {
+            throw StartupRecovery(repository, ownsDatabase: database == null);
+          }
+          rethrow;
+        }
         if (storedSelection == null)
           await keys.put(
             activeLedgerKey,
@@ -531,6 +566,8 @@ class AppServices extends ChangeNotifier {
         services.error = safeError(e);
       }
       return services;
+    } on StartupRecovery {
+      rethrow; // The explicit recovery capability owns the retained connection.
     } on Object {
       if (database == null) await db.close();
       rethrow;

@@ -3,6 +3,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/app.dart';
 import 'app/services.dart';
 import 'app/theme.dart';
+import 'app/startup_recovery.dart';
+import 'features/backup/ui/backup_page.dart';
+import 'features/backup/document_access.dart';
 
 export 'app/app.dart';
 
@@ -13,8 +16,9 @@ void main() {
 
 /// A failed unlock remains visible and retryable; no destructive recovery.
 class EchoSubsBootstrapApp extends StatefulWidget {
-  const EchoSubsBootstrapApp({super.key, this.bootstrap});
+  const EchoSubsBootstrapApp({super.key, this.bootstrap, this.documents});
   final Future<AppServices> Function()? bootstrap;
+  final DocumentAccess? documents;
   @override
   State<EchoSubsBootstrapApp> createState() => _EchoSubsBootstrapAppState();
 }
@@ -29,6 +33,8 @@ class _EchoSubsBootstrapAppState extends State<EchoSubsBootstrapApp> {
   }
 
   Future<AppServices?> load() async {
+    final previous = failure;
+    if (previous is StartupRecovery) await previous.close();
     failure = null;
     try {
       return await (widget.bootstrap ?? AppServices.bootstrap)();
@@ -81,6 +87,28 @@ class _EchoSubsBootstrapAppState extends State<EchoSubsBootstrapApp> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
+                        if (failure is StartupRecovery)
+                          Builder(
+                            builder: (context) => OutlinedButton(
+                              onPressed: () async {
+                                final recovery = failure! as StartupRecovery;
+                                final selected = await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute<bool>(
+                                    builder: (_) => BackupPage.recovery(
+                                      recovery: recovery,
+                                      documents: widget.documents,
+                                    ),
+                                  ),
+                                );
+                                if (selected == true && mounted)
+                                  setState(() {
+                                    pending = load();
+                                  });
+                              },
+                              child: const Text('从备份独立恢复'),
+                            ),
+                          ),
                         FilledButton.icon(
                           key: const ValueKey('bootstrap.retry'),
                           onPressed: () => setState(() {

@@ -330,6 +330,30 @@ class SyncRuntime {
     await rebind();
   }
 
+  Future<void> renewLanIdentity({
+    required bool confirmed,
+    required LedgerId expectedLedgerId,
+  }) {
+    if (!confirmed)
+      return Future.error(const EchoFailure('cancelled', '身份更新已取消'));
+    _selected(expectedLedgerId);
+    final generation = ++_generation;
+    final op = _queue.then((_) async {
+      _selected(expectedLedgerId);
+      await _stop();
+      // Revocation is durable before activation. Failure leaves LAN stopped and
+      // local ledger operations available; explicit retry stages a fresh pair.
+      for (final id in await repository.listLedgers()) {
+        await peers.revokeLedger(id);
+      }
+      _selected(expectedLedgerId);
+      await LanIdentity.renew(repository.vault, repository.deviceId);
+      await _bind(generation);
+    });
+    _queue = op.then<void>((_) {}, onError: (Object _) {});
+    return op;
+  }
+
   Future<PairingOffer> offer() async {
     final config = (await configs())
         .where((c) => c.kind == SyncChannelKind.lan && c.enabled)

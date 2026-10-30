@@ -291,6 +291,17 @@ class LanPeerStore {
     ); // Immediate denial even if the secure-storage write fails.
     return _serial(() => vault.put('$base.state', Uint8List.fromList([0])));
   }
+
+  /// Run after stopping old pairing services. The same queue drains all earlier
+  /// saves, and includes incomplete records referenced by the durable index.
+  Future<void> revokeLedger(LedgerId ledger) => _serial(() async {
+    for (final remote in await _index(ledger)) {
+      final base = _base(ledger, remote);
+      _revisions[base] = (_revisions[base] ?? 0) + 1;
+      _denied.add(base);
+      await vault.put('$base.state', Uint8List.fromList([0]));
+    }
+  });
 }
 
 class _OfferState {

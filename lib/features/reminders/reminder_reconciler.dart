@@ -45,9 +45,20 @@ class ReminderReconciler extends ChangeNotifier {
                         r.kind == EntityKind.ledgerConfig,
                   )
                   .toSet();
-        error = state == null ? '账本不可用，已停止预约' : null;
+        final configMissing =
+            state != null &&
+            state.projection.entities[EntityRef(
+                  EntityKind.ledgerConfig,
+                  state.metadata.id,
+                )]
+                is! LedgerConfig;
+        error = state == null
+            ? '账本不可用，已停止预约'
+            : configMissing
+            ? '账本配置缺失或待确认，已停止预约'
+            : null;
         await adapter.replace(
-          state == null
+          state == null || configMissing
               ? []
               : planReminders(
                   state.projection,

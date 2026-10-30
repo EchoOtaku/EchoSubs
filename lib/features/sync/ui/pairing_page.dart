@@ -126,6 +126,37 @@ class _PairingPageState extends State<PairingPage> {
     if (mounted) setState(() => offer = value);
   }
 
+  Future<void> renewIdentity() async {
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('更新本机局域网身份？'),
+        content: const Text(
+          '旧配对将全部失效，新证书指纹需要在每台设备上重新扫码并双方确认。账本、恢复密钥和历史保持不变。身份过期或损坏时可使用此操作恢复局域网连接。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认更新并重新配对'),
+          ),
+        ],
+      ),
+    );
+    if (agreed != true || !mounted) return;
+    expiry?.cancel();
+    setState(() => offer = null);
+    await action(
+      () => widget.services.syncRuntime.renewLanIdentity(
+        confirmed: true,
+        expectedLedgerId: ledgerId,
+      ),
+    );
+  }
+
   Future<void> join(String value) async {
     final parsed = PairingOffer.decode(value);
     input.clear();
@@ -156,6 +187,10 @@ class _PairingPageState extends State<PairingPage> {
           children: [
             const Text(
               '仅同一可达局域网。启用后仅在前台监听指定端口；请填写此设备的局域网 IP，双方都需确认设备 ID 和证书指纹。',
+            ),
+            OutlinedButton(
+              onPressed: busy ? null : renewIdentity,
+              child: const Text('更新本机局域网身份'),
             ),
             if (available.isNotEmpty)
               DropdownButtonFormField<String>(

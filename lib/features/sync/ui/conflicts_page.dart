@@ -154,19 +154,25 @@ class _ConflictEditorState extends State<_ConflictEditor> {
                 '版本 ${i + 1}：${variants[i] == null ? '删除标记' : describeConflictEntity(variants[i]!)}',
               ),
               OutlinedButton(
-                onPressed: busy
+                onPressed:
+                    busy ||
+                        (ref.kind == EntityKind.ledgerConfig &&
+                            variants[i] == null)
                     ? null
                     : () => setState(() => choices[ref] = variants[i]),
                 child: Text('保留版本 ${i + 1}'),
               ),
             ],
-            TextButton(
-              key: ValueKey('conflict.delete.${ref.id}'),
-              onPressed: busy
-                  ? null
-                  : () => setState(() => choices[ref] = null),
-              child: const Text('明确删除此实体'),
-            ),
+            if (ref.kind == EntityKind.ledgerConfig)
+              const Text('账本配置不可删除，请选择有效的时区版本。')
+            else
+              TextButton(
+                key: ValueKey('conflict.delete.${ref.id}'),
+                onPressed: busy
+                    ? null
+                    : () => setState(() => choices[ref] = null),
+                child: const Text('明确删除此实体'),
+              ),
             Text(
               !choices.containsKey(ref)
                   ? '尚未选择'

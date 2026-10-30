@@ -36,14 +36,18 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
     super.initState();
     final s = widget.value;
     _ledgerId = widget.services.ledger.currentLedgerId!;
+    final editable =
+        s == null || widget.services.canEdit(EntityRef(s.kind, s.id));
     _baseMatches =
-        s == null ||
-        widget.services.snapshot!.projection.entities[EntityRef(
-              s.kind,
-              s.id,
-            )] ==
-            s;
-    _baseParents = s == null
+        editable &&
+        (s == null ||
+            widget.services.snapshot!.projection.entities[EntityRef(
+                  s.kind,
+                  s.id,
+                )] ==
+                s);
+    if (!editable) _error = '此记录待确认，请返回详情处理冲突';
+    _baseParents = s == null || !editable
         ? []
         : widget.services.snapshot!.causal.parentsFor(EntityRef(s.kind, s.id));
     final initial = <String, String>{
@@ -221,6 +225,7 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
+              if (!_baseMatches) const Text('此记录待确认或已更新，请返回详情处理冲突'),
               const SectionTitle(
                 '基本信息',
                 subtitle: '价格、权益到期与预计续费分别记录。保存订阅不会自动生成付款。',

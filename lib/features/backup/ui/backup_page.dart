@@ -1,14 +1,25 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../app/services.dart';
+import '../../../app/startup_recovery.dart';
 import '../../../core/crypto/ledger_keys.dart';
 import '../backup_format.dart';
 import '../backup_service.dart';
 import '../document_access.dart';
 
 class BackupPage extends StatefulWidget {
-  const BackupPage({super.key, required this.services, this.documents});
-  final AppServices services;
+  const BackupPage({
+    super.key,
+    required AppServices this.services,
+    this.documents,
+  }) : recovery = null;
+  const BackupPage.recovery({
+    super.key,
+    required StartupRecovery this.recovery,
+    this.documents,
+  }) : services = null;
+  final AppServices? services;
+  final StartupRecovery? recovery;
   final DocumentAccess? documents;
   @override
   State<BackupPage> createState() => _BackupPageState();
@@ -19,7 +30,9 @@ class _BackupPageState extends State<BackupPage> {
   bool busy = false;
   String? status;
   RestorePreview? preview;
-  BackupService get backup => widget.services.backup!;
+  String? restoredId;
+  BackupService get backup =>
+      widget.services?.backup ?? widget.recovery!.backup;
   Future<void> run(Future<void> Function() action) async {
     if (busy) return;
     setState(() {
@@ -100,7 +113,7 @@ class _BackupPageState extends State<BackupPage> {
     if (plain) {
       bytes = await backup.exportPlain(confirmed: true);
     } else {
-      final id = widget.services.ledger.currentLedgerId!;
+      final id = widget.services!.ledger.currentLedgerId!;
       final recovery = await backup.recoveryFor(id);
       if (!mounted) return;
       if (recovery != null) {
@@ -111,7 +124,7 @@ class _BackupPageState extends State<BackupPage> {
       ))
         return;
       if (!mounted) return;
-      if (id != widget.services.ledger.currentLedgerId) {
+      if (id != widget.services!.ledger.currentLedgerId) {
         setState(() => status = '账本已切换，请重新导出');
         return;
       }
@@ -132,36 +145,10 @@ class _BackupPageState extends State<BackupPage> {
       return;
     }
     if (!mounted) return;
-    final input = TextEditingController();
-    String? encoded;
-    try {
-      encoded = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('输入备份原恢复密钥'),
-          content: TextField(
-            controller: input,
-            obscureText: true,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: const InputDecoration(labelText: 'ES1- 恢复密钥'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, input.text.trim()),
-              child: const Text('校验并预览'),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      input.clear();
-      input.dispose();
-    }
+    final encoded = await showDialog<String>(
+      context: context,
+      builder: (_) => const _RecoveryCodeDialog(),
+    );
     if (encoded == null) return;
     final result = await backup.inspect(bytes, RecoveryCode.parse(encoded));
     if (mounted) setState(() => preview = result);
@@ -169,7 +156,10 @@ class _BackupPageState extends State<BackupPage> {
   Future<void> restore() => run(() async {
     final selected = preview;
     if (selected == null) return;
-    final id = await widget.services.restoreBackup(selected);
+    final id = widget.recovery != null
+        ? await widget.recovery!.restore(selected)
+        : await widget.services!.restoreBackup(selected);
+    restoredId = id;
     // Clear the preview before presenting a secret, preventing duplicate clicks.
     if (mounted) setState(() => preview = null);
     final recovery = await backup.recoveryFor(id);
@@ -179,7 +169,7 @@ class _BackupPageState extends State<BackupPage> {
         () => status =
             '已恢复为独立新账本。同步保持关闭，当前账本未切换。'
             '${selected.configurationNeedsConfirmation ? '配置待确认，日期提醒保持暂停。' : ''}'
-            '请到“同步与账本”另行选择。',
+            '${widget.recovery == null ? '请到“同步与账本”另行选择。' : '可在下方明确选择新账本。'}',
       );
   });
   @override
@@ -192,19 +182,36 @@ class _BackupPageState extends State<BackupPage> {
         children: [
           const Text('同步不是备份。加密备份包含全部历史与未解决冲突，同一账本沿用同一恢复密钥。文件上限 100 MiB。'),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: busy ? null : () => export(),
-            child: const Text('导出加密备份'),
-          ),
-          TextButton(
-            onPressed: busy ? null : () => export(plain: true),
-            child: const Text('导出明文私人数据'),
-          ),
+          if (widget.services != null)
+            FilledButton(
+              onPressed: busy ? null : () => export(),
+              child: const Text('导出加密备份'),
+            ),
+          if (widget.services != null)
+            TextButton(
+              onPressed: busy ? null : () => export(plain: true),
+              child: const Text('导出明文私人数据'),
+            ),
           OutlinedButton(
             onPressed: busy ? null : inspect,
             child: const Text('选择备份并预览'),
           ),
           if (busy) const LinearProgressIndicator(),
+          if (widget.recovery != null && restoredId != null)
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () => run(() async {
+                      if (!await confirm(
+                        '选择恢复后的新账本？',
+                        '保留原数据库、账本和密钥，仅切换当前选择；其他设备需重新加入。',
+                      ))
+                        return;
+                      await widget.recovery!.select(restoredId!);
+                      if (mounted) Navigator.pop(context, true);
+                    }),
+              child: const Text('明确选择恢复后的新账本'),
+            ),
           if (preview case final p?)
             Card(
               child: Padding(
@@ -238,5 +245,43 @@ class _BackupPageState extends State<BackupPage> {
         ],
       ),
     ),
+  );
+}
+
+class _RecoveryCodeDialog extends StatefulWidget {
+  const _RecoveryCodeDialog();
+  @override
+  State<_RecoveryCodeDialog> createState() => _RecoveryCodeDialogState();
+}
+
+class _RecoveryCodeDialogState extends State<_RecoveryCodeDialog> {
+  final input = TextEditingController();
+  @override
+  void dispose() {
+    input.clear();
+    input.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('输入备份原恢复密钥'),
+    content: TextField(
+      controller: input,
+      obscureText: true,
+      autocorrect: false,
+      enableSuggestions: false,
+      decoration: const InputDecoration(labelText: 'ES1- 恢复密钥'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('取消'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, input.text.trim()),
+        child: const Text('校验并预览'),
+      ),
+    ],
   );
 }

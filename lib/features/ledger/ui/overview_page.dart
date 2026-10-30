@@ -76,7 +76,7 @@ class OverviewPage extends StatelessWidget {
         ])
           if (channel.enabled && (!channel.succeeded))
             Text(
-              '同步待处理：待上传 ${channel.pendingUpload} · 待补依赖 ${channel.pendingDependencies} · 冲突 ${channel.conflicts} · 隔离 ${channel.quarantined}${channel.errors.isEmpty ? '' : ' · ${channel.errors.join('；')}'}',
+              '${identical(channel, services.syncStatus.report.lan) ? '局域网' : 'WebDAV '}同步待处理：待上传 ${channel.pendingUpload} · 待补依赖 ${channel.pendingDependencies} · 冲突 ${channel.conflicts} · 隔离 ${channel.quarantined}${channel.errors.isEmpty ? '' : ' · ${channel.errors.join('；')}'}',
             ),
         if (services.subscriptions.isEmpty)
           EmptyLedger(onAdd: onAdd)

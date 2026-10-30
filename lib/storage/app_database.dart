@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import '../core/model/errors.dart';
 import 'tables.dart';
+import 'profile_lease.dart';
 
 part 'app_database.g.dart';
 
@@ -57,7 +58,7 @@ class AppDatabase extends _$AppDatabase {
 
   static Future<AppDatabase> openDefault() async {
     final directory = await getApplicationSupportDirectory();
-    await directory.create(recursive: true);
+    await ProfileLease.acquire(directory);
     return open(
       File('${directory.path}${Platform.pathSeparator}echosubs.sqlite'),
     );

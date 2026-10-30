@@ -487,7 +487,7 @@ class AndroidReminderPlatform implements ReminderPlatform {
   @override
   Future<void> testNotification() async {
     if (await permission() != ReminderPermission.granted)
-      throw const EchoFailure('permission', '通知权限未开启');
+      throw const EchoFailure('unavailable', '通知权限未开启');
     await plugin.show(
       id: 0,
       title: 'EchoSubs 测试提醒',

@@ -292,6 +292,14 @@ class LedgerRepository {
     if (expectedLedgerId != null && target.ledgerId != expectedLedgerId) {
       throw const EchoFailure('conflict', '账本已切换，请重新打开表单');
     }
+    for (final change in changes) {
+      if (change.ref.kind == EntityKind.ledgerConfig &&
+          (change.ref.id != target.ledgerId ||
+              change.value is! LedgerConfig ||
+              change.value!.id != target.ledgerId)) {
+        throw const EchoFailure('validation', '账本配置必须保留，请选择有效的时区版本');
+      }
+    }
     final keys = await _keys(target.ledgerId);
     final batch = _batch(target.ledgerId, changes);
     final object = await StoredObject.fromBytes(
