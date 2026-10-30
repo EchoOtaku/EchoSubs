@@ -502,10 +502,21 @@ void main() {
       try {
         await adapter.replace(events);
         expect(adapter.status.complete, false);
+        expect(
+          (await ReminderStateStore(
+            h.db,
+          ).all()).every((r) => r.phase == ReminderPhase.scheduling),
+          true,
+        );
         platform.crashAfterSchedule = false;
         await adapter.replace(events);
         expect(adapter.status.complete, true);
-        expect(platform.schedules, 3);
+        // Uncertain intent must retry the same IDs through platform durability,
+        // even when its in-memory registration list already matches.
+        expect(platform.schedules, 6);
+        expect(platform.queued.length, 3);
+        await adapter.replace(events);
+        expect(platform.schedules, 6);
         platform.failCancel = true;
         await adapter.replace([]);
         expect(adapter.status.complete, false);

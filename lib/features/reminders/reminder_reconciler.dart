@@ -20,13 +20,17 @@ class ReminderReconciler extends ChangeNotifier {
   Set<EntityRef> suppressed = {};
   String? error;
   bool _closed = false;
+  bool _running = false;
   Future<void> _tail = Future.value();
   ReminderStatus get status => adapter.status;
-  bool get complete => error == null && suppressed.isEmpty && status.complete;
+  bool get complete =>
+      !_running && error == null && suppressed.isEmpty && status.complete;
   Future<void> reconcile() {
     if (_closed) return Future.value();
     return _tail = _tail.then((_) async {
       if (_closed) return;
+      _running = true;
+      notifyListeners();
       try {
         final state = await snapshot();
         suppressed = state == null
@@ -55,6 +59,7 @@ class ReminderReconciler extends ChangeNotifier {
         error = '提醒计划暂不可用，已尝试取消旧预约';
         await adapter.replace([]);
       }
+      _running = false;
       if (!_closed) notifyListeners();
     });
   }

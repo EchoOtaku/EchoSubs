@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:xml/xml.dart';
 import 'package:echo_subs/features/reminders/reminder_adapter.dart';
 import 'package:echo_subs/features/reminders/reminder_planner.dart';
 import 'package:echo_subs/storage/app_database.dart';
@@ -28,6 +29,21 @@ void main() {
       final support = await getApplicationSupportDirectory();
       if (!support.path.contains('/dev.echootaku.echo_subs.integration/'))
         throw StateError('Refusing non-isolated support directory');
+      Future<List<int>> persistedIds() async {
+        final file = File(
+          '${support.parent.path}/shared_prefs/scheduled_notifications.xml',
+        );
+        final document = XmlDocument.parse(await file.readAsString());
+        final cache = document
+            .findAllElements('string')
+            .singleWhere(
+              (e) => e.getAttribute('name') == 'scheduled_notifications',
+            );
+        return (jsonDecode(cache.innerText) as List)
+            .map((e) => (e as Map)['id'] as int)
+            .toList();
+      }
+
       tzdata.initializeTimeZones();
       final directory = Directory('${support.path}/task9-reminders-v1');
       await directory.create(recursive: true);
@@ -81,6 +97,7 @@ void main() {
         final ids = records.map((r) => r.id).toList()..sort();
         expect(ids.length, 3);
         expect((await platform.pending()).keys, containsAll(ids));
+        expect(await persistedIds(), unorderedEquals(ids));
         await adapter.replace(events); // same key and same IDs, never duplicate
         expect((await platform.pending()).keys.where(ids.contains).length, 3);
         await platform.testNotification();
@@ -95,11 +112,10 @@ void main() {
           await adapter.replace([]);
           expect(adapter.status.complete, true);
           expect((await platform.pending()).keys.where(ids.contains), isEmpty);
-          // SharedPreferences.apply() returns before disk writes finish. The
-          // native runner may kill this process as soon as assertions finish.
-          // This is a TEST cleanup checkpoint, not a production durability or
-          // delivery guarantee. The host then inspects the persisted cache.
-          await Future<void>.delayed(const Duration(seconds: 2));
+          expect(await persistedIds(), isEmpty);
+          debugPrint('REMINDERS_NATIVE_DURABLE_CACHE_EMPTY_NO_DELAY');
+          // No fixed delay: production schedule/cancel Futures now include the
+          // native SharedPreferences commit barrier. Host inspects disk directly.
           await marker.writeAsString(
             jsonEncode({
               'phase': 'complete',

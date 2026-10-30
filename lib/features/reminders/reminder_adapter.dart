@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../core/model/errors.dart';
@@ -188,6 +189,7 @@ class DurableReminderAdapter implements ReminderAdapter {
   }
 
   Future<void> _replace(List<ReminderEvent> events) async {
+    status = ReminderStatus(permission: status.permission);
     var access = ReminderPermission.unknown;
     final cancellationRisk = <ReminderEvent>[];
     try {
@@ -231,9 +233,17 @@ class DurableReminderAdapter implements ReminderAdapter {
       // Only cancel IDs whose durable ownership has just been validated.
       for (final record in previous) {
         final target = wanted[record.key];
+        // An unconfirmed write can cross its due instant while waiting for a
+        // retry. Do not replay it or silently declare it complete: cancel and
+        // durably flush the old registration, preserving consumed event keys.
+        final uncertainElapsed =
+            !record.batch.scheduledAtUtc.isAfter(time) &&
+            (record.phase == ReminderPhase.scheduling ||
+                record.phase == ReminderPhase.cancelling);
         if (access != ReminderPermission.granted ||
             target == null ||
-            target.fingerprint != record.batch.fingerprint) {
+            target.fingerprint != record.batch.fingerprint ||
+            uncertainElapsed) {
           if (record.phase == ReminderPhase.cancelled &&
               !pending.containsKey(record.id))
             continue;
@@ -265,7 +275,8 @@ class DurableReminderAdapter implements ReminderAdapter {
         // Plugin pending() is its persisted registration list, not proof the OS
         // retained an alarm after force-stop. Re-register future IDs once per
         // process start. Reusing the integer replaces the alarm atomically.
-        if (pending[record.id] == batch.fingerprint &&
+        if (record.phase == ReminderPhase.scheduled &&
+            pending[record.id] == batch.fingerprint &&
             (!_recovering || !batch.scheduledAtUtc.isAfter(time))) {
           record.batch = batch;
           record.phase = ReminderPhase.scheduled;
@@ -338,6 +349,26 @@ class AndroidReminderPlatform implements ReminderPlatform {
   AndroidReminderPlatform({FlutterLocalNotificationsPlugin? plugin})
     : plugin = plugin ?? FlutterLocalNotificationsPlugin();
   final FlutterLocalNotificationsPlugin plugin;
+  static const _persistence = MethodChannel(
+    'dev.echootaku.echo_subs/reminder_persistence',
+  );
+
+  /// The pinned plugin uses apply() on scheduled_notifications. Native commit
+  /// must succeed before the caller can claim a durable schedule/cancellation.
+  /// Matching in-memory plugin pending entries are not a substitute for this.
+  Future<void> _flushScheduledNotifications() async {
+    try {
+      if (await _persistence.invokeMethod<bool>(
+            'flushScheduledNotifications',
+          ) ==
+          true)
+        return;
+    } on Object {
+      /* Deliberately do not expose native paths or exceptions. */
+    }
+    throw const EchoFailure('unavailable', '提醒缓存持久化失败，请重试');
+  }
+
   Future<void>? _initialized;
   Future<void> _init() => _initialized ??= _initialize();
   Future<void> _initialize() async {
@@ -420,12 +451,14 @@ class AndroidReminderPlatform implements ReminderPlatform {
       body: '${batch.events.length} 项订阅即将到期，请打开应用查看详情',
       payload: batch.fingerprint,
     );
+    await _flushScheduledNotifications();
   }
 
   @override
   Future<void> cancel(int id) async {
     await _init();
     await plugin.cancel(id: id);
+    await _flushScheduledNotifications();
   }
 
   @override
