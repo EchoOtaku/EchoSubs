@@ -4,6 +4,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// A process-scoped opt-in keeps integration tests out of the user's app data.
+val isolatedIntegration = providers.environmentVariable("ECHOSUBS_INTEGRATION_TEST").orNull == "1"
+val dartTarget = providers.gradleProperty("target").orNull?.replace('\\', '/') ?: ""
+check(!dartTarget.contains("integration_test/") || isolatedIntegration) {
+    "Integration targets require ECHOSUBS_INTEGRATION_TEST=1; use integration_test/support/run_native.ps1"
+}
+
 android {
     namespace = "dev.echootaku.echo_subs"
     compileSdk = 36
@@ -31,6 +38,9 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            if (isolatedIntegration) applicationIdSuffix = ".integration"
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

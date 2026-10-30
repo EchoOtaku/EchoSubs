@@ -35,6 +35,7 @@ android/key.properties
 .vscode/
 android/.gradle/
 /android/.kotlin/
+/android/build/
 android/captures/
 android/local.properties
 android/app/debug/
