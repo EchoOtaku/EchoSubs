@@ -1,5 +1,14 @@
 # 本地构建与交付
 
+2026-10-30 已从干净的应用源码提交 `b673122b98fbc9403b259e0a0b3980c7e112e220` 构建 `1.0.0+1`，本地交付位于 `.local/releases/20261030-202400-b673122/`。后续验收文档提交不改变这些二进制的应用源码。
+
+| 产物 | 字节 | SHA256 |
+| --- | ---: | --- |
+| EchoSubs-1.0.0-windows-x64.zip | 14721708 | `25ca5df9fc08939803fe76c4f782941eafe35344be2d3290dbcfdd8e52b4202f` |
+| EchoSubs-1.0.0-android-local-test-signed.apk | 84583063 | `5f4fc3cf7bf01155abaaf0cd6745b1e604aea7292f5ae0e6c18aaa4eb7f915a8` |
+
+Windows ZIP 包含完整 19 文件（exe、DLL、data），已逐项核对解压内容哈希。Android 实际包名 `dev.echootaku.echo_subs`、显示名「EchoSubs 订阅簿」、minSdk24/targetSdk36，包含 arm64-v8a/armeabi-v7a/x86_64；APK Signature Scheme v2 验证通过，证书 `CN=Android Debug`，证书 SHA256 `24ecefc8fef9d384d71e17f616f8488b65a2c03cf3c8223aa18ddf8532f6dae6`。它是**本机测试签名**，已在用户指定模拟器安装并正常启动/重开新空账本，未恢复此前被移除的身份。
+
 版本来自 `pubspec.yaml`。使用项目锁定的 Flutter 与依赖，不自动升级工具链；本机路径仅从全局环境清单读取，本文不复制本机配置。
 
 ```powershell
