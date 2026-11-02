@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../../app/design_system.dart';
 import '../../../app/services.dart';
 import '../../../app/startup_recovery.dart';
 import '../../../core/crypto/ledger_keys.dart';
@@ -266,12 +267,16 @@ class _RecoveryCodeDialogState extends State<_RecoveryCodeDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('输入备份原恢复密钥'),
-    content: TextField(
-      controller: input,
-      obscureText: true,
-      autocorrect: false,
-      enableSuggestions: false,
-      decoration: const InputDecoration(labelText: 'ES1- 恢复密钥'),
+    scrollable: true,
+    content: EchoField(
+      label: 'ES1- 恢复密钥',
+      child: TextField(
+        controller: input,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: const InputDecoration(),
+      ),
     ),
     actions: [
       TextButton(

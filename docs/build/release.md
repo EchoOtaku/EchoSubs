@@ -1,5 +1,24 @@
 # 本地构建与交付
 
+## 2026-11-02 自定义界面版本
+
+应用源码提交 `b350468e6d6a691fb122c5221f535ffb9373e7cc`，版本 `1.0.0+2`。交付目录为 `.local/releases/20261102-125034-b350468/`，与下方首版产物分别保留。后续验收文档提交不改变该应用源码。
+
+| 产物 | 字节 | SHA256 |
+| --- | ---: | --- |
+| EchoSubs-1.0.0+2-windows-x64.zip | 14696165 | `69255aaba3fa50a7584c0128af89bed975a596214b0b3cb9b3a76813f36214e6` |
+| EchoSubs-1.0.0+2-android-local-test-signed.apk | 84418715 | `be6918391b4672cca2b1ed5887b8c4e4b04920e6cea7d4ee8fcd14fc5d0c16be` |
+
+Windows 完整 19 文件已复制至交付目录的 `windows-x64/`，ZIP 中每一项的长度及解压内容 SHA256 均与构建目录一致；CompanyName、ProductName 和 exe basename 保持原值。Android 实际主包名 `dev.echootaku.echo_subs`、versionCode 2，签名验证通过，证书 SHA256 与下方首版本机测试签名相同。交付 APK 的复制前后 SHA256 也已核对。
+
+在安装前读取既有主包二进制并核验同一证书后，已对 MuMu 执行 `adb install -r`。安装 UID 及首次安装时间保持，主 Activity 启动 Status ok，随后进程仍运行，该 PID 的 crash buffer 没有记录。没有卸载、清空、读取真实账本或恢复密钥；没有截取主应用界面。MuMu 与更新后的主程序保留供试用。
+
+构建使用正常 `flutter build windows --release` 与 `flutter build apk --release`。集成测试之后首次 Android 构建使用 `--no-pub`，因其跳过 release 插件重生成而保留 integration_test 注册项并失败；核对本机 Flutter 官方源码后，按正常 release 入口重新生成，测试插件已过滤，双端重建成功。没有手改生成代码、SDK 或依赖版本。
+
+本版本仍为本机测试签名 APK；不是生产签名交付。自动与原生验收、预览性质及外部边界见 `acceptance.md`，界面约定见 `../design/ui-refresh.md`。
+
+## 2026-10-30 首版
+
 2026-10-30 已从干净的修复后应用源码提交 `51a545a4367bc4e083fa64b842792ada7b2a08dc` 重建 `1.0.0+1`，本次交付位于 `.local/releases/20261030-213311-51a545a/`。后续新增全账本身份撤销测试与验收文档不改变这些二进制的应用源码。旧 `b673122` 产物仅为历史预览版本。
 
 | 产物 | 字节 | SHA256 |

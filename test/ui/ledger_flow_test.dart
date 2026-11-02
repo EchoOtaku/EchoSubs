@@ -227,8 +227,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('视频月会员 已编辑'));
       await tester.pumpAndSettle();
-      expect(find.text('权益到期：2026-12-31'), findsOneWidget);
-      expect(find.text('预计续费：2026-11-01'), findsOneWidget);
+      expect(find.text('权益到期'), findsOneWidget);
+      expect(find.text('2026-12-31'), findsOneWidget);
+      expect(find.text('预计续费'), findsOneWidget);
+      expect(find.text('2026-11-01'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const ValueKey('detail.renew')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('detail.renew')));

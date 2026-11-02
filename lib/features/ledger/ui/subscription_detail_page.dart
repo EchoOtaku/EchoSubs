@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../app/services.dart';
+import '../../../app/design_system.dart';
 import '../../../core/model/civil_date.dart';
 import '../../../core/model/change_batch.dart';
 import '../../../core/model/errors.dart';
@@ -136,6 +137,7 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
           ],
         ),
         body: PageContent(
+          maxWidth: 960,
           children: [
             if (!editable) ...[
               const Text('待确认：以下为共同确认的旧版本，日期与金额存在争议。'),
@@ -203,7 +205,7 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
                             RenewalEditor(services: widget.services, value: s),
                       ),
                     ),
-              icon: const Icon(Icons.add_card),
+              icon: const EchoIcon(EchoSymbol.payments, size: 18),
               label: const Text('记录付款 / 续费'),
             ),
             const SizedBox(height: 12),
@@ -258,8 +260,39 @@ class _SubscriptionDetailPageState extends State<SubscriptionDetailPage> {
     },
   );
   Widget _line(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Text('$label：$value'),
+    padding: const EdgeInsets.only(bottom: 14),
+    child: LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth < 340
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 4),
+                SelectableText(
+                  value,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 124,
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                Expanded(
+                  child: SelectableText(
+                    value,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+    ),
   );
 }
 
@@ -334,24 +367,24 @@ class _RenewalEditorState extends State<RenewalEditor> {
     bool required = false,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
-    child: TextFormField(
-      key: ValueKey('payment.$key'),
-      controller: fields[key],
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: isDate ? 'YYYY-MM-DD' : null,
-      ),
-      validator: (v) {
-        if (required && (v == null || v.trim().isEmpty)) return '请填写此项';
-        if (isDate && v != null && v.trim().isNotEmpty) {
-          try {
-            CivilDate.fromJson(v.trim());
-          } on Object {
-            return '请输入有效日期';
+    child: EchoField(
+      label: label,
+      child: TextFormField(
+        key: ValueKey('payment.$key'),
+        controller: fields[key],
+        decoration: InputDecoration(hintText: isDate ? 'YYYY-MM-DD' : null),
+        validator: (v) {
+          if (required && (v == null || v.trim().isEmpty)) return '请填写此项';
+          if (isDate && v != null && v.trim().isNotEmpty) {
+            try {
+              CivilDate.fromJson(v.trim());
+            } on Object {
+              return '请输入有效日期';
+            }
           }
-        }
-        return null;
-      },
+          return null;
+        },
+      ),
     ),
   );
   Future<void> save() async {
@@ -436,18 +469,13 @@ class _RenewalEditorState extends State<RenewalEditor> {
         ),
       ),
     ),
-    bottomNavigationBar: Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton.icon(
-            key: const ValueKey('payment.save'),
-            onPressed: saving ? null : save,
-            icon: const Icon(Icons.check),
-            label: Text(saving ? '保存中…' : '保存付款与权益'),
-          ),
-        ),
+    bottomNavigationBar: EchoActionBar(
+      onCancel: saving ? null : () => Navigator.pop(context),
+      primary: FilledButton.icon(
+        key: const ValueKey('payment.save'),
+        onPressed: saving ? null : save,
+        icon: const EchoIcon(EchoSymbol.check, size: 18),
+        label: Text(saving ? '保存中…' : '保存付款与权益'),
       ),
     ),
   );

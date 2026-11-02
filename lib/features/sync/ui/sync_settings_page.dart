@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../app/design_system.dart';
+import '../../ledger/ui/widgets.dart' show EchoActionBar;
 import '../../../app/services.dart';
 import '../../../core/crypto/ledger_keys.dart';
 import '../../../core/model/errors.dart';
@@ -146,7 +148,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SwitchListTile(
+            EchoSwitchTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
                 kind == SyncChannelKind.webdav ? 'WebDAV 网盘' : '局域网直连',
@@ -271,34 +273,56 @@ class _DavSettingsFormState extends State<DavSettingsForm> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            TextField(
-              controller: root,
-              key: const ValueKey('dav.root'),
-              decoration: InputDecoration(
-                labelText: widget.join
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: EchoField(
+                label: widget.join
                     ? 'HTTPS 账本目录（含账本 ID，以 / 结尾）'
                     : 'HTTPS 专用应用目录（以 / 结尾）',
+                child: TextField(
+                  controller: root,
+                  key: const ValueKey('dav.root'),
+                  decoration: const InputDecoration(),
+                ),
               ),
             ),
-            TextField(
-              controller: user,
-              decoration: const InputDecoration(labelText: '网盘用户名'),
-              autocorrect: false,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: EchoField(
+                label: '网盘用户名',
+                child: TextField(
+                  controller: user,
+                  decoration: const InputDecoration(),
+                  autocorrect: false,
+                ),
+              ),
             ),
-            TextField(
-              controller: password,
-              obscureText: true,
-              enableSuggestions: false,
-              autocorrect: false,
-              decoration: const InputDecoration(labelText: '网盘密码 / 应用密码'),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: EchoField(
+                label: '网盘密码 / 应用密码',
+                child: TextField(
+                  controller: password,
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  decoration: const InputDecoration(),
+                ),
+              ),
             ),
             if (widget.join)
-              TextField(
-                controller: recovery,
-                obscureText: true,
-                enableSuggestions: false,
-                autocorrect: false,
-                decoration: const InputDecoration(labelText: '原账本恢复密钥'),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: EchoField(
+                  label: '原账本恢复密钥',
+                  child: TextField(
+                    controller: recovery,
+                    obscureText: true,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    decoration: const InputDecoration(),
+                  ),
+                ),
               ),
             const SizedBox(height: 24),
             const Text(davDisclosure),
@@ -322,34 +346,20 @@ class _DavSettingsFormState extends State<DavSettingsForm> {
         ),
       ),
     ),
-    bottomNavigationBar: Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Wrap(
-            spacing: 12,
-            children: [
-              FilledButton(
-                key: const ValueKey('dav.save'),
-                onPressed: !accepted || busy ? null : save,
-                child: Text(
-                  busy
-                      ? '正在验证…'
-                      : widget.join
-                      ? '验证并加入'
-                      : '启用网盘',
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  token.cancel();
-                  Navigator.pop(context);
-                },
-                child: const Text('取消'),
-              ),
-            ],
-          ),
+    bottomNavigationBar: EchoActionBar(
+      onCancel: () {
+        token.cancel();
+        Navigator.pop(context);
+      },
+      primary: FilledButton(
+        key: const ValueKey('dav.save'),
+        onPressed: !accepted || busy ? null : save,
+        child: Text(
+          busy
+              ? '正在验证…'
+              : widget.join
+              ? '验证并加入'
+              : '启用网盘',
         ),
       ),
     ),
