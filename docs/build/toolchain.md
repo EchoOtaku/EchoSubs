@@ -1,52 +1,45 @@
-# 可复现构建
+# 构建要求
 
-本项目固定 Flutter `3.47.9`（随附 Dart `3.13.7`），以 `.flutter-version`、精确直接依赖和 `pubspec.lock` 锁定工程版本。全局环境清单唯一位置为 `D:\Workspaces\Personal\MyPCConfig\AGENT_ENVIRONMENT.md`；本文件只记录项目构建要求，不复制机器安装清单。
+本项目由 `.flutter-version` 固定 Flutter 版本，直接依赖使用精确版本，传递依赖由 `pubspec.lock` 锁定。不要自动升级 SDK、依赖、签名或全局配置。
 
-Flutter 官方归档：[Windows 3.47.9 stable](https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.47.9-stable.zip)，摘要来自 [Google 官方发布元数据](https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json)。本次安装代理使用 Flutter 文档列出的 CFUG 镜像下载完整归档，并核对以下 Google 官方 SHA256 成功：
+## 工具链
 
-```text
-d8e2b5977e09082c6440f89dc1aa887b94c8fbcc3b39222797046295a3f68a9e
+| 目标 | 要求 |
+| --- | --- |
+| Flutter | 3.47.9 stable，随附 Dart 3.13.7 |
+| Windows | x64；具备 Windows SDK 与 C++ 桌面构建工具的 Visual Studio；实际验收环境为 Windows 11 |
+| Android | minSdk 24，compile/targetSdk 36；Java 字节码目标 17，已验证的 Gradle 运行时为 JDK 21 |
+| Android 原生组件 | 与锁定 Flutter/插件要求匹配的 NDK、CMake；用 `flutter doctor -v` 检查现有环境 |
+
+本机安装路径、账号状态及代理由仓库外的唯一环境清单维护，本文不复制机器目录或个人配置。其他开发机器应按自身 SDK 布局配置进程环境。缺少工具时先停止并确认，不擅自安装环境或更改系统代理。
+
+Android 平台工程锁定 AGP 9.1.0、Kotlin 2.4.0、Gradle 9.3.1。wrapper 使用官方 `-bin` 分发，其 SHA256 为 `b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06`，来源见 [Gradle 官方摘要](https://services.gradle.org/distributions/gradle-9.3.1-bin.zip.sha256)。不要因为本机 PATH 缺少 Gradle 而另装全局版本。
+
+## 常规验证与构建
+
+在项目根目录执行，先确认 `flutter --version` 与固定版本一致：
+
+```sh
+flutter doctor -v
+flutter pub get
+flutter test
+flutter analyze
+flutter build windows --release
+flutter build apk --release
 ```
 
-官方 `flutter create --platforms=windows,android --org=dev.echootaku --project-name=echo_subs --no-pub .` 生成平台工程。模板固定 AGP `9.1.0`、Kotlin `2.4.0`、Gradle `9.3.1`，保留模板组合。Gradle 使用同版本官方 `-bin` 分发，wrapper 固定其 [官方 SHA256](https://services.gradle.org/distributions/gradle-9.3.1-bin.zip.sha256) `b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06`；无需下载包含源码与文档的 `-all` 包。
+Windows 交付必须包含整个 Release 目录，不能只复制 exe。Android 当前仍使用本机测试签名；生产密钥的生成、保存与迁移需要单独安排，私钥与 `android/key.properties` 不进入 Git。
 
-## 验证命令
+`scripts/verify.ps1` 提供 unit、windows、android 与 all 阶段，包含进度、硬超时和日志；用 `-TimeoutSeconds` 覆盖单阶段预算。Android 原生集成测试必须使用 `integration_test/support/run_native.ps1`：隔离 `.integration` 包、构建后实际包名核验、`--no-uninstall`，不能清空主程序。
 
-使用既有 SDK 完整路径，运行前核验版本。命令执行于工程根目录；不依赖修改系统 PATH。
+## 生成文件与依赖
 
-```powershell
-$env:APPDATA = 'D:\SDK\cache\echosubs-20261030\flutter-appdata'
-$env:JAVA_HOME = 'D:\SDK\Java\Zulu21'
-$env:ANDROID_HOME = 'D:\SDK\Android'
-$env:ANDROID_SDK_ROOT = 'D:\SDK\Android'
-$env:PUB_CACHE = 'D:\SDK\cache\pub'
-$env:NO_PROXY = 'localhost,127.0.0.1,::1'
-$env:PATH = "D:\SDK\Flutter\bin;D:\SDK\Java\Zulu21\bin;D:\Software\Dev\Git\cmd;$env:PATH"
-& 'D:\SDK\Flutter\bin\flutter.bat' --version
-& 'D:\SDK\Flutter\bin\flutter.bat' pub get
-& 'D:\SDK\Flutter\bin\flutter.bat' test
-& 'D:\SDK\Flutter\bin\flutter.bat' analyze
-& 'D:\SDK\Flutter\bin\flutter.bat' build windows --debug
-& 'D:\SDK\Flutter\bin\flutter.bat' build apk --debug
-```
+正常 `flutter pub get` 和构建会准备平台生成文件与 wrapper。构建可能取得 Gradle、锁定插件原生组件和 SQLite hook 验证的原生库，这些属于构建依赖。
 
-Windows 目标为 Windows 10 1903+ x64。Android 最低 API 24、compile/target SDK 36、Java 17，启用 core library desugaring `2.1.4`。构建缺失 SDK 或工具时停止并报告，不以自动安装填补授权范围外的组件。Android SDK 与 Java 只在当前构建进程指定，`android/local.properties` 不提交。
+不要在集成测试后直接用 `flutter build apk --release --no-pub`：在已验证的 Flutter 版本中，该选项也跳过 release 插件重生成，会保留开发插件注册项。保留正常 release 入口，由 Flutter 过滤开发依赖；不要手改注册文件或 SDK。
 
-Java 17 是应用字节码编译目标；本次 Gradle 运行时使用已安装的 Zulu 21，以满足生成模板的工具要求。Flutter 的 JDK 路径配置隔离于上述 APPDATA 下，不改变用户常用 Flutter 配置。若现有网络需要代理，Java 不会自动使用 HTTP_PROXY；本次 Android 构建仅在子进程 `JAVA_TOOL_OPTIONS` 中指定用户现有的 `127.0.0.1:7897` HTTP/HTTPS 代理并排除 loopback，不写全局 Gradle 或系统代理。其他机器应按自身网络配置，不能照搬此端口。
+## 数据约定与验收
 
-## 领域约定
+金额使用整数最小单位，同币种按精度分别累计；不同币种不做隐式换算。日/周周期的预测以一年 365 天折算，预测不是付款历史。权益日期为不带时刻的公历日期，月/年周期从原始锚点计算。
 
-金额使用非负的 64 位整数最小单位，JSON 中的 `minorUnits` 为十进制字符串；中间有理数计算使用 `BigInt`，越界拒绝，所有费用按币种分别汇总。同币种输入精度必须一致。预计月、年费用在各币种的有理数合计完成后按精度四舍五入（half up），不逐条舍入。日/周周期以一年 365 天折算，只代表估算；真实付款仅来自付款记录。
-
-账本日期是 `0001-01-01` 到 `9999-12-31` 的公历日期，不携带时区或时刻。月/年周期始终从原始锚点计算，不把截断后的二月日期作为下一次锚点。
-
-## 构建验证记录
-
-2026-10-30 实际验证：Flutter `3.47.9 stable` / Dart `3.13.7`，`flutter doctor -v` 为 `No issues found`；`flutter devices` 识别 Windows 与用户已启动的 MuMu（Android 12/API32，`127.0.0.1:16384`），未另开 AVD。
-
-- RED：领域实现前 `flutter test test/domain` 退出1，四个测试文件因领域接口尚不存在编译失败。
-- GREEN：领域实现后同命令加 `--no-pub`，17项测试全部通过；加入应用空壳与自审补充的费用摘要值相等测试后，最终 `flutter test --no-pub` 为19项全部通过，`flutter analyze --no-pub` 为 `No issues found`（4.2秒）。官方 `dart format --output=none --set-exit-if-changed lib test` 检查16文件，0项变更。
-- Windows：`flutter build windows --debug --no-pub` 退出0，耗时42.5秒，生成 `build/windows/x64/runner/Debug/echo_subs.exe`。最初缺少生成的插件注册文件，`flutter pub get --offline` 重新生成后通过。
-- Android：实际构建准备中，结果待补齐。首次Gradle直连分发下载静默，经进程和网络检查后主动停止（144.3秒）；第二次使用上述仅进程代理与已校验的同版本bin分发，下载75MB后仍有长暂停，由协调代理裁定主动停止（317.6秒）并交工具链代理从官方源加速下载同一分发、核对完整SHA256后再恢复构建。这两次主动停止均为退出1，不能作为APK构建通过的证据。
-
-依赖组合已完成真实解析，未降级计划直接依赖。`flutter create` 后需要重新 `flutter pub get`，生成平台插件注册文件；这些注册文件按 Flutter 模板规则管理。构建过程可能下载 Gradle、锁定插件的原生构件，以及 SQLite 3.x hook 校验的原生库；不属于应用运行时下载。真机通知与端到端同步验收属于后续任务，空壳构建通过不代表这些功能已实现。
+当前实现与最终结果以 [验收记录](acceptance.md) 和 [交付记录](release.md) 为准；历史计划保留其制定时快照，不应当作当前待办或最终构建状态。

@@ -41,10 +41,10 @@ IngestResult为applied/duplicate/pending/conflict/quarantined。duplicate只表�
 
 碰撞ID及其依赖闭包从confirmed/eligible排除，相关outbox移除，历史不删除。隔离、业务撤回及冲突索引同事务提交。snapshot.quarantinedBatchIds、causal.unsafeRefs为后续异常UI的明确状态；本任务不提供强制选中碰撞候选的恢复功能。
 
-`LedgerStore.quarantinedObjects()` / `snapshot.quarantinedObjects`返回不可变QuarantineCandidate，含每份原bytes、摘要、认证body与reason。`objects()`仍只返回每ID的原cipher_objects存档，**不含碰撞第二份**。后续完整备份与LAN/协调器必须额外枚举quarantine candidates，按账本+批次+摘要去重转发已认证原bytes，让第三节点也能看到碰撞。不能只转发首份、不能重新seal、不能传播未认证垃圾；接收候选仍走ingest认证。本任务不实现协调器或备份恢复。
+`LedgerStore.quarantinedObjects()` / `snapshot.quarantinedObjects` 返回不可变 QuarantineCandidate，含每份原 bytes、摘要、认证 body 与 reason。`objects()` 只返回每 ID 的原 cipher_objects 存档，**不含碰撞第二份**。完整备份与 LAN/协调器额外枚举 quarantine candidates，按账本+批次+摘要去重转发已认证原 bytes，让第三节点也能看到碰撞。不能只转发首份、不能重新 seal、不能传播未认证垃圾；接收候选仍走 ingest 认证。协议层与协调器、备份模块的当前实现均保留这一约束。
 
 ## 验证与范围
 
 虚构数据、真实独立SQLite文件和AEAD测试覆盖三副本重排/重复投递、100固定种子、删除编辑、双续费、子先于父、认证拒绝、不同refs的同ID碰撞、完整/部分解决、未来并发、多实体闭包、事务检查点崩溃重放、schema1/2迁移及回滚、未来数据库版本拒绝。
 
-当前从完整不可变历史重建，单个snapshot缓存因果分析；尚未做大型历史增量索引或性能基准。历史压缩、隔离处理UI、提醒、传输和备份属于后续任务，不删除历史。
+当前从完整不可变历史重建，单个 snapshot 缓存因果分析；尚未做大型历史增量索引、历史压缩或性能基准，不删除历史。同步协调器、传输、提醒与完整备份已在首版接入，当前交付及验收范围见 [验收记录](../build/acceptance.md)。
