@@ -6,7 +6,7 @@
 
 核查包含当前版本控制文件与未忽略的新文档、所有本地 Git 对象和历史文件名、远端分支同步、GitHub issue/PR 正文及评论，以及待发布 Windows ZIP/APK 的每个成员和解压后的许可证文本。没有读取被忽略的真实账本、操作系统凭据库、恢复密钥或仓库外的私人目录。
 
-仓库继续保持私有；提交作者信息经所有者明确确认保留。本次没有改写历史或更改访问权限。
+仓库已按所有者最新授权公开，提交作者信息按既定选择保留。本次不改写 Git 历史；初次发布时的可见性记录是历史快照，不能作为当前访问状态。
 
 ## 方法与结果
 
@@ -28,7 +28,7 @@
 
 ## English summary
 
-The release audit covers current version-controlled files, Git objects/history, GitHub issue/PR text and comments, and all members of the Windows ZIP and Android APK, including decompressed notices. The repository remains private; the owner explicitly chose to retain Git author identity.
+The release audit covers current version-controlled files, Git objects/history, GitHub issue/PR text and comments, and all members of the Windows ZIP and Android APK, including decompressed notices. The repository is public under the owner's latest instruction, with Git author identity retained. Initial-publication visibility records are historical snapshots, not the current access status.
 
 Reviewed matches are deterministic synthetic interoperability vectors and RSA PEM formatting markers used by runtime-generated device identities. No actual API credentials, private-key payloads, personal databases, exports, or logs were identified within this scope. All production Dart source files are reachable from the app entry point; historical design/plan documents are explicitly archived.
 

@@ -20,7 +20,7 @@
 
 ## 下载与安装
 
-从 [Releases](https://github.com/EchoOtaku/EchoSubs/releases) 下载。私有仓库需要具有访问权限的 GitHub 账号。
+仓库已公开，可直接浏览源码并从 [Releases](https://github.com/EchoOtaku/EchoSubs/releases) 下载。
 
 | 平台 | 安装 | 提醒行为 |
 | --- | --- | --- |

@@ -20,7 +20,7 @@ The auto-renew flag is informational. It does not make payments, create payment 
 
 ## Download and install
 
-Download from [Releases](https://github.com/EchoOtaku/EchoSubs/releases). Access to this private repository requires an authorized GitHub account.
+The repository and release downloads are public. Download from [Releases](https://github.com/EchoOtaku/EchoSubs/releases).
 
 | Platform | Installation | Reminders |
 | --- | --- | --- |
