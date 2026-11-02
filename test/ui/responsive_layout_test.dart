@@ -126,7 +126,7 @@ void main() {
         ]) {
           await tester.tap(find.byKey(ValueKey('nav.$key')));
           await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull);
+          expect(tester.takeException(), isNull, reason: '当前页面：$key');
         }
         final context = tester.element(
           find.byKey(const ValueKey('nav.overview')),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../app/services.dart';
+import '../../../app/design_system.dart';
 import '../../../core/model/civil_date.dart';
 import '../../../core/model/change_batch.dart';
 import '../../../core/model/errors.dart';
@@ -101,16 +102,19 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
     int lines = 1,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
-    child: TextFormField(
-      key: ValueKey('field.$key'),
-      controller: field(key),
-      decoration: InputDecoration(labelText: label, hintText: hint),
-      validator: validator,
-      keyboardType: keyboard,
-      maxLines: lines,
-      textInputAction: lines == 1
-          ? TextInputAction.next
-          : TextInputAction.newline,
+    child: EchoField(
+      label: label,
+      child: TextFormField(
+        key: ValueKey('field.$key'),
+        controller: field(key),
+        decoration: InputDecoration(hintText: hint),
+        validator: validator,
+        keyboardType: keyboard,
+        maxLines: lines,
+        textInputAction: lines == 1
+            ? TextInputAction.next
+            : TextInputAction.newline,
+      ),
     ),
   );
   Widget dateInput(String key, String label) => input(
@@ -238,22 +242,26 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
               ),
               input('provider', '服务提供商'),
               input('category', '分类', hint: '输入已有分类或创建新分类'),
-              DropdownButtonFormField<BillingType>(
-                key: const ValueKey('field.billingType'),
-                initialValue: _type,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: '计费类型'),
-                items: BillingType.values
-                    .map(
-                      (v) => DropdownMenuItem(
-                        value: v,
-                        child: Text(billingText(v)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() {
-                  _type = v!;
-                }),
+              EchoField(
+                label: '计费类型',
+                child: DropdownButtonFormField<BillingType>(
+                  key: const ValueKey('field.billingType'),
+                  initialValue: _type,
+                  isExpanded: true,
+                  decoration: const InputDecoration(),
+                  borderRadius: BorderRadius.circular(8),
+                  items: BillingType.values
+                      .map(
+                        (v) => DropdownMenuItem(
+                          value: v,
+                          child: Text(billingText(v)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() {
+                    _type = v!;
+                  }),
+                ),
               ),
               const SizedBox(height: 16),
               input(
@@ -303,20 +311,27 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
                     return n == null || n <= 0 ? '请输入正整数' : null;
                   },
                 ),
-                DropdownButtonFormField<CycleUnit>(
-                  key: const ValueKey('field.cycleUnit'),
-                  initialValue: _unit,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: '周期单位'),
-                  items: const [
-                    DropdownMenuItem(value: CycleUnit.day, child: Text('天')),
-                    DropdownMenuItem(value: CycleUnit.week, child: Text('周')),
-                    DropdownMenuItem(value: CycleUnit.month, child: Text('月')),
-                    DropdownMenuItem(value: CycleUnit.year, child: Text('年')),
-                  ],
-                  onChanged: (v) => setState(() {
-                    _unit = v!;
-                  }),
+                EchoField(
+                  label: '周期单位',
+                  child: DropdownButtonFormField<CycleUnit>(
+                    key: const ValueKey('field.cycleUnit'),
+                    initialValue: _unit,
+                    isExpanded: true,
+                    decoration: const InputDecoration(),
+                    borderRadius: BorderRadius.circular(8),
+                    items: const [
+                      DropdownMenuItem(value: CycleUnit.day, child: Text('天')),
+                      DropdownMenuItem(value: CycleUnit.week, child: Text('周')),
+                      DropdownMenuItem(
+                        value: CycleUnit.month,
+                        child: Text('月'),
+                      ),
+                      DropdownMenuItem(value: CycleUnit.year, child: Text('年')),
+                    ],
+                    onChanged: (v) => setState(() {
+                      _unit = v!;
+                    }),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 dateInput('anchor', '周期锚点'),
@@ -336,7 +351,7 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
                       label: const Text('按锚点计算下一期'),
                     ),
                   ),
-                SwitchListTile(
+                EchoSwitchTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('自动续费'),
                   value: _autoRenew,
@@ -346,21 +361,25 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
                 ),
               ],
               const SizedBox(height: 16),
-              DropdownButtonFormField<SubscriptionStatus>(
-                initialValue: _status,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: '状态'),
-                items: SubscriptionStatus.values
-                    .map(
-                      (v) => DropdownMenuItem(
-                        value: v,
-                        child: Text(statusText(v)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() {
-                  _status = v!;
-                }),
+              EchoField(
+                label: '状态',
+                child: DropdownButtonFormField<SubscriptionStatus>(
+                  initialValue: _status,
+                  isExpanded: true,
+                  decoration: const InputDecoration(),
+                  borderRadius: BorderRadius.circular(8),
+                  items: SubscriptionStatus.values
+                      .map(
+                        (v) => DropdownMenuItem(
+                          value: v,
+                          child: Text(statusText(v)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() {
+                    _status = v!;
+                  }),
+                ),
               ),
               const SizedBox(height: 24),
               const SectionTitle('补充信息'),
@@ -384,18 +403,13 @@ class _SubscriptionEditorState extends State<SubscriptionEditor> {
         ),
       ),
     ),
-    bottomNavigationBar: Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-          child: FilledButton.icon(
-            key: const ValueKey('editor.save'),
-            onPressed: _saving ? null : save,
-            icon: const Icon(Icons.check),
-            label: Text(_saving ? '保存中…' : '保存订阅'),
-          ),
-        ),
+    bottomNavigationBar: EchoActionBar(
+      onCancel: _saving ? null : () => Navigator.pop(context),
+      primary: FilledButton.icon(
+        key: const ValueKey('editor.save'),
+        onPressed: _saving ? null : save,
+        icon: const EchoIcon(EchoSymbol.check, size: 18),
+        label: Text(_saving ? '保存中…' : '保存订阅'),
       ),
     ),
   );

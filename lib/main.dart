@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/app.dart';
 import 'app/services.dart';
 import 'app/theme.dart';
+import 'app/design_system.dart';
 import 'app/startup_recovery.dart';
 import 'features/backup/ui/backup_page.dart';
 import 'features/backup/document_access.dart';
@@ -57,71 +58,79 @@ class _EchoSubsBootstrapAppState extends State<EchoSubsBootstrapApp> {
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: ledgerTheme(Brightness.light),
         darkTheme: ledgerTheme(Brightness.dark),
-        home: Scaffold(
-          body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.subscriptions_outlined, size: 48),
-                      const SizedBox(height: 24),
-                      Text(
-                        'EchoSubs 订阅簿',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 16),
-                      if (failure != null) ...[
-                        const Text(
-                          '暂时无法打开本地账本',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(safeError(failure!), textAlign: TextAlign.center),
-                        const SizedBox(height: 12),
-                        const Text(
-                          '原有数据库与密钥不会被清空或替换。',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        if (failure is StartupRecovery)
-                          Builder(
-                            builder: (context) => OutlinedButton(
-                              onPressed: () async {
-                                final recovery = failure! as StartupRecovery;
-                                final selected = await Navigator.push<bool>(
-                                  context,
-                                  MaterialPageRoute<bool>(
-                                    builder: (_) => BackupPage.recovery(
-                                      recovery: recovery,
-                                      documents: widget.documents,
-                                    ),
-                                  ),
-                                );
-                                if (selected == true && mounted)
-                                  setState(() {
-                                    pending = load();
-                                  });
-                              },
-                              child: const Text('从备份独立恢复'),
-                            ),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const EchoMark(size: 48),
+                          const SizedBox(height: 24),
+                          Text(
+                            'EchoSubs 订阅簿',
+                            style: Theme.of(context).textTheme.headlineSmall,
                           ),
-                        FilledButton.icon(
-                          key: const ValueKey('bootstrap.retry'),
-                          onPressed: () => setState(() {
-                            pending = load();
-                          }),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('重试打开'),
-                        ),
-                      ] else
-                        const CircularProgressIndicator(
-                          semanticsLabel: '正在打开本地账本',
-                        ),
-                    ],
+                          const SizedBox(height: 16),
+                          if (failure != null) ...[
+                            const Text(
+                              '暂时无法打开本地账本',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              safeError(failure!),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              '原有数据库与密钥不会被清空或替换。',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            if (failure is StartupRecovery)
+                              Builder(
+                                builder: (context) => OutlinedButton(
+                                  onPressed: () async {
+                                    final recovery =
+                                        failure! as StartupRecovery;
+                                    final selected = await Navigator.push<bool>(
+                                      context,
+                                      MaterialPageRoute<bool>(
+                                        builder: (_) => BackupPage.recovery(
+                                          recovery: recovery,
+                                          documents: widget.documents,
+                                        ),
+                                      ),
+                                    );
+                                    if (selected == true && mounted)
+                                      setState(() {
+                                        pending = load();
+                                      });
+                                  },
+                                  child: const Text('从备份独立恢复'),
+                                ),
+                              ),
+                            FilledButton.icon(
+                              key: const ValueKey('bootstrap.retry'),
+                              onPressed: () => setState(() {
+                                pending = load();
+                              }),
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('重试打开'),
+                            ),
+                          ] else
+                            const CircularProgressIndicator(
+                              semanticsLabel: '正在打开本地账本',
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),

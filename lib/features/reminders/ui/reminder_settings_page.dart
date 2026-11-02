@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../app/design_system.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../../app/services.dart';
 import '../../../core/model/change_batch.dart';
@@ -48,25 +49,28 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('修改账本时区'),
+          scrollable: true,
           content: Form(
             key: form,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text('保存后会重新核对提醒。旅行或设备时区变化不会自动修改账本。'),
-                TextFormField(
-                  controller: field,
-                  decoration: const InputDecoration(
-                    labelText: 'IANA 时区，例如 Asia/Shanghai',
+                const SizedBox(height: 16),
+                EchoField(
+                  label: 'IANA 时区，例如 Asia/Shanghai',
+                  child: TextFormField(
+                    controller: field,
+                    decoration: const InputDecoration(),
+                    validator: (v) {
+                      try {
+                        tz.getLocation(v!.trim());
+                        return null;
+                      } on Object {
+                        return '请输入有效的 IANA 时区';
+                      }
+                    },
                   ),
-                  validator: (v) {
-                    try {
-                      tz.getLocation(v!.trim());
-                      return null;
-                    } on Object {
-                      return '请输入有效的 IANA 时区';
-                    }
-                  },
                 ),
               ],
             ),
@@ -126,31 +130,36 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
         context: context,
         builder: (context) => AlertDialog(
           title: Text('${sub.name}的提醒'),
+          scrollable: true,
           content: Form(
             key: form,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextFormField(
-                  controller: days,
-                  decoration: const InputDecoration(
-                    labelText: '提前天数（逗号分隔，留空关闭）',
-                  ),
-                  validator: (_) {
-                    try {
-                      parse();
-                      return null;
-                    } on Object {
-                      return '请填写非负天数与有效时间';
-                    }
-                  },
-                ),
-                TextFormField(
-                  controller: time,
-                  decoration: InputDecoration(
-                    labelText: '账本时间 HH:mm（${services.config?.timeZoneId}）',
+                EchoField(
+                  label: '提前天数（逗号分隔，留空关闭）',
+                  child: TextFormField(
+                    controller: days,
+                    decoration: const InputDecoration(),
+                    validator: (_) {
+                      try {
+                        parse();
+                        return null;
+                      } on Object {
+                        return '请填写非负天数与有效时间';
+                      }
+                    },
                   ),
                 ),
+                const SizedBox(height: 16),
+                EchoField(
+                  label: '账本时间 HH:mm（${services.config?.timeZoneId}）',
+                  child: TextFormField(
+                    controller: time,
+                    decoration: const InputDecoration(),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 const Text('更改时间不会重复发送今天已经触发的同条目、同规则提醒。'),
               ],
             ),

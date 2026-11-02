@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'navigation.dart';
 import 'services.dart';
 import 'theme.dart';
+import 'design_system.dart';
 
 class EchoSubsApp extends StatefulWidget {
   const EchoSubsApp({super.key, required this.services});
@@ -13,6 +14,11 @@ class EchoSubsApp extends StatefulWidget {
 
 class _EchoSubsAppState extends State<EchoSubsApp> with WidgetsBindingObserver {
   AppServices get services => widget.services;
+  bool get reduceMotion => WidgetsBinding
+      .instance
+      .platformDispatcher
+      .accessibilityFeatures
+      .disableAnimations;
   @override
   void initState() {
     super.initState();
@@ -49,8 +55,11 @@ class _EchoSubsAppState extends State<EchoSubsApp> with WidgetsBindingObserver {
       locale: const Locale('zh', 'CN'),
       supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: ledgerTheme(Brightness.light),
-      darkTheme: ledgerTheme(Brightness.dark),
+      theme: ledgerTheme(Brightness.light, reduceMotion: reduceMotion),
+      darkTheme: ledgerTheme(Brightness.dark, reduceMotion: reduceMotion),
+      themeAnimationDuration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
       themeMode: services.themeMode,
       builder: (context, child) => ValueListenableBuilder<String?>(
         valueListenable: services.inAppReminders?.banner ?? _emptyBanner,
@@ -60,14 +69,11 @@ class _EchoSubsAppState extends State<EchoSubsApp> with WidgetsBindingObserver {
               Material(
                 child: SafeArea(
                   bottom: false,
-                  child: MaterialBanner(
-                    content: Text(message),
-                    actions: [
-                      TextButton(
-                        onPressed: services.inAppReminders?.dismiss,
-                        child: const Text('知道了'),
-                      ),
-                    ],
+                  child: EchoNotice(
+                    message: message,
+                    icon: EchoSymbol.bell,
+                    action: services.inAppReminders?.dismiss,
+                    actionLabel: '知道了',
                   ),
                 ),
               ),

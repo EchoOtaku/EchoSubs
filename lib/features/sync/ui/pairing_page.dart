@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../app/design_system.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -193,29 +194,45 @@ class _PairingPageState extends State<PairingPage> {
               child: const Text('更新本机局域网身份'),
             ),
             if (available.isNotEmpty)
-              DropdownButtonFormField<String>(
-                initialValue: available.length == 1 ? available.single : null,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: '选择与另一台设备相同网络的地址'),
-                items: [
-                  for (final value in available)
-                    DropdownMenuItem(value: value, child: Text(value)),
-                ],
-                onChanged: (value) {
-                  if (value != null) address.text = value;
-                },
+              EchoField(
+                label: '选择与另一台设备相同网络的地址',
+                child: DropdownButtonFormField<String>(
+                  initialValue: available.length == 1 ? available.single : null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(),
+                  borderRadius: BorderRadius.circular(8),
+                  items: [
+                    for (final value in available)
+                      DropdownMenuItem(value: value, child: Text(value)),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) address.text = value;
+                  },
+                ),
               ),
             ExpansionTile(
               title: const Text('高级设置 / 手动地址'),
               children: [
-                TextField(
-                  controller: address,
-                  decoration: const InputDecoration(labelText: '此设备局域网 IP'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: EchoField(
+                    label: '此设备局域网 IP',
+                    child: TextField(
+                      controller: address,
+                      decoration: const InputDecoration(),
+                    ),
+                  ),
                 ),
-                TextField(
-                  controller: port,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: '固定监听端口'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: EchoField(
+                    label: '固定监听端口',
+                    child: TextField(
+                      controller: port,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -257,12 +274,15 @@ class _PairingPageState extends State<PairingPage> {
             const Text(
               '加入会保留原账本，验证完整历史后切换。仅通过配对加入的设备没有原恢复密钥；需要保管原设备的恢复密钥才能离线恢复。',
             ),
-            TextField(
-              controller: input,
-              obscureText: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: const InputDecoration(labelText: '粘贴另一端的一次性配对文本'),
+            EchoField(
+              label: '粘贴另一端的一次性配对文本',
+              child: TextField(
+                controller: input,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: const InputDecoration(),
+              ),
             ),
             if (Platform.isAndroid)
               OutlinedButton.icon(
